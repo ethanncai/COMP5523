@@ -1,0 +1,58 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+*.tar.gz
+# Virtual environments
+.venv/
+venv/
+env/
+dataset/
+*.zip
+plain-photos/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE / tooling
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs and local runs
+*.log
+wandb/
+
+# Training / inference outputs (default train.py --output_dir)
+smolvlm-lora-out/
+checkpoints/
+outputs/
+runs/
+
+# Hugging Face cache (if downloaded locally inside repo)
+.cache/
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# mypy
+.mypy_cache/

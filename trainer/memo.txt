@@ -1,0 +1,6 @@
+python infer.py \
+  --adapter_path ./smolvlm-lora-out \
+  --image ./dataset/A.jpg \
+  --prompt_file ./dataset/A.prompt.txt
+
+python train.py --data_dir ./dataset --output_dir ./smolvlm-lora-out --epochs 30 --batch_size 1

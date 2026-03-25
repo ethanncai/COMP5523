@@ -1,0 +1,19 @@
+# SmolVLM LoRA training + inference (trainer/)
+# Install PyTorch for your platform first if needed:
+#   https://pytorch.org/get-started/locally/
+
+torch>=2.1.0
+transformers>=4.44.0
+accelerate>=0.26.0
+datasets>=2.18.0
+peft>=0.11.0
+safetensors>=0.4.0
+Pillow>=10.0.0
+
+# Optional: 4-bit QLoRA on CUDA only (train.py --qlora)
+# bitsandbytes>=0.43.0
+
+# Optional: SiliconFlow dataset generation (trainer/generate_dataset_siliconflow.py)
+openai>=1.0.0
+tqdm>=4.66.0
+# pillow-heif>=0.16.0
