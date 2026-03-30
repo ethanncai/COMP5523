@@ -56,3 +56,31 @@ htmlcov/
 
 # mypy
 .mypy_cache/
+
+# Xcode / Swift / SwiftPM (app/ and any nested .xcodeproj)
+**/xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.swiftsourceinfo
+*.app
+*.xcresult
+*.xcarchive
+timeline.xctimeline
+playground.xcworkspace
+
+# Swift Package Manager (local build artifacts; keep Package.resolved if committed)
+.build/
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
+
+# CocoaPods / Carthage (if added later)
+Pods/
+Carthage/Build/
+
+# iOS app: bundled model weights and tokenizer files (re-download locally as needed)
+app/FastVLM/model/

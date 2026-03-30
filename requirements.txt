@@ -9,6 +9,13 @@ datasets>=2.18.0
 peft>=0.11.0
 safetensors>=0.4.0
 Pillow>=10.0.0
+tensorboard>=2.14.0
+
+# FastAPI server (server/)
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+requests>=2.28.0
 
 # Optional: 4-bit QLoRA on CUDA only (train.py --qlora)
 # bitsandbytes>=0.43.0

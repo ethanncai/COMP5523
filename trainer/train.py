@@ -8,6 +8,9 @@ For ``--prompt-variant concise`` (default), user prompts are generated on the
 fly from the stem's encoded drink class — no sidecar prompt files needed.
 
 Use ``--prompt-variant full`` to read ``<stem>.prompt.txt`` from disk instead.
+
+TensorBoard: logs under ``<output_dir>/runs`` by default. View with
+``tensorboard --logdir <output_dir>/runs``. Pass ``--no_tensorboard`` to disable.
 """
 
 from __future__ import annotations
@@ -165,6 +168,17 @@ def main() -> None:
     parser.add_argument("--lora_r", type=int, default=16)
     parser.add_argument("--lora_alpha", type=int, default=32)
     parser.add_argument("--qlora", action="store_true", help="4-bit QLoRA (needs bitsandbytes)")
+    parser.add_argument(
+        "--tensorboard_dir",
+        type=str,
+        default=None,
+        help="TensorBoard event directory (default: <output_dir>/runs)",
+    )
+    parser.add_argument(
+        "--no_tensorboard",
+        action="store_true",
+        help="Disable TensorBoard logging (report_to=none)",
+    )
     args = parser.parse_args()
 
     if args.qlora and not torch.cuda.is_available():
@@ -275,6 +289,12 @@ def main() -> None:
 
     use_bf16 = bool(torch.cuda.is_available() and torch.cuda.is_bf16_supported())
     use_mps = bool(torch.backends.mps.is_available() and not torch.cuda.is_available())
+    use_tensorboard = not args.no_tensorboard
+    tensorboard_dir = (
+        os.path.abspath(args.tensorboard_dir)
+        if args.tensorboard_dir is not None
+        else os.path.join(os.path.abspath(args.output_dir), "runs")
+    )
     training_args = TrainingArguments(
         output_dir=args.output_dir,
         num_train_epochs=args.epochs,
@@ -291,9 +311,16 @@ def main() -> None:
         optim="adamw_torch",
         gradient_checkpointing=True,
         remove_unused_columns=False,
-        report_to="none",
+        report_to="tensorboard" if use_tensorboard else "none",
+        logging_dir=tensorboard_dir if use_tensorboard else None,
         dataloader_pin_memory=not use_mps,
     )
+    if use_tensorboard:
+        print(
+            f"TensorBoard log dir: {tensorboard_dir}\n"
+            f"  View: tensorboard --logdir {tensorboard_dir}",
+            flush=True,
+        )
 
     trainer = Trainer(
         model=model,
