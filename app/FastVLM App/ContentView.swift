@@ -4,8 +4,6 @@
 //
 
 import AVFoundation
-import CoreImage
-import MLXLMCommon
 import SwiftUI
 import Video
 
@@ -16,7 +14,7 @@ let GUIDANCE_INTERVAL = Duration.milliseconds(100)
 
 struct ContentView: View {
     @State private var camera = CameraController()
-    @State private var model = FastVLMModel()
+    @State private var model = RemoteVLMModel()
     @State private var framesToDisplay: AsyncStream<CVImageBuffer>?
     @State private var latestFrame: CVImageBuffer?
     @State private var recognizer = SpeechRecognizer(locale: Locale(identifier: "en-US"))
@@ -357,12 +355,7 @@ struct ContentView: View {
                 let prompt = buildGuidancePrompt(for: targetObject)
 
                 model.cancel()
-                let userInput = UserInput(
-                    prompt: .text(prompt),
-                    images: [.ciImage(CIImage(cvPixelBuffer: frame))]
-                )
-                let generation = await model.generate(userInput)
-                await generation.value
+                await model.generate(prompt: prompt, pixelBuffer: frame)
 
                 if Task.isCancelled { break }
 
