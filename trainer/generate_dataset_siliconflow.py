@@ -53,6 +53,11 @@ DEFAULT_MODEL = "Qwen/Qwen3-VL-235B-A22B-Thinking"
 # HEIC/HEIF need pillow-heif: pip install pillow-heif
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".heic", ".heif"}
 
+# API payload: always re-encode as JPEG and cap longest edge (avoids provider
+# "invalid image" on some WebP/PNG/large files and oversized requests).
+_MAX_SIDE_FOR_API = 2048
+_JPEG_QUALITY_API = 92
+
 # Multiple user-goal phrasings per drink (robustness).
 USER_GOAL_VARIANTS: dict[str, list[str]] = {
     "sprite": [
@@ -157,26 +162,39 @@ def _open_image_rgb(path: str) -> Image.Image:
     return im.convert("RGB")
 
 
+def _maybe_downscale_for_api(im: Image.Image, max_side: int) -> Image.Image:
+    """Shrink so longest edge <= max_side (keeps aspect ratio)."""
+    w, h = im.size
+    if max(w, h) <= max_side:
+        return im
+    scale = max_side / float(max(w, h))
+    nw = max(1, int(round(w * scale)))
+    nh = max(1, int(round(h * scale)))
+    try:
+        resample = Image.Resampling.LANCZOS
+    except AttributeError:
+        resample = Image.LANCZOS
+    return im.resize((nw, nh), resample)
+
+
 def image_to_data_url(path: str) -> str:
-    """Build data URL for the chat API. HEIC is converted to JPEG in memory."""
-    ext = os.path.splitext(path)[1].lower()
-    if ext in (".heic", ".heif"):
-        im = _open_image_rgb(path)
-        buf = io.BytesIO()
-        im.save(buf, format="JPEG", quality=92)
-        b64 = base64.standard_b64encode(buf.getvalue()).decode("ascii")
-        return f"data:image/jpeg;base64,{b64}"
-    if ext in (".jpg", ".jpeg"):
-        mime = "image/jpeg"
-    elif ext == ".png":
-        mime = "image/png"
-    elif ext == ".webp":
-        mime = "image/webp"
-    else:
-        mime = "image/jpeg"
-    with open(path, "rb") as f:
-        b64 = base64.standard_b64encode(f.read()).decode("ascii")
-    return f"data:{mime};base64,{b64}"
+    """Build data URL for the chat API.
+
+    Always decodes with Pillow, converts to RGB, optionally downscales, and
+    encodes as JPEG. Raw file bytes are not sent: SiliconFlow and similar APIs
+    often reject mislabeled files, exotic WebP, or oversized payloads.
+    """
+    im = _open_image_rgb(path)
+    im = _maybe_downscale_for_api(im, _MAX_SIDE_FOR_API)
+    buf = io.BytesIO()
+    im.save(
+        buf,
+        format="JPEG",
+        quality=_JPEG_QUALITY_API,
+        optimize=True,
+    )
+    b64 = base64.standard_b64encode(buf.getvalue()).decode("ascii")
+    return f"data:image/jpeg;base64,{b64}"
 
 
 def write_dataset_image(src_path: str, dst_stem: str, out_dir: str) -> str:

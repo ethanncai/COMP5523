@@ -179,6 +179,14 @@ def main() -> None:
         action="store_true",
         help="Disable TensorBoard logging (report_to=none)",
     )
+    parser.add_argument(
+        "--no_gradient_checkpointing",
+        action="store_true",
+        help=(
+            "Disable gradient checkpointing (much faster on MPS/CUDA if VRAM allows; "
+            "default is on to save memory)"
+        ),
+    )
     args = parser.parse_args()
 
     if args.qlora and not torch.cuda.is_available():
@@ -289,6 +297,13 @@ def main() -> None:
 
     use_bf16 = bool(torch.cuda.is_available() and torch.cuda.is_bf16_supported())
     use_mps = bool(torch.backends.mps.is_available() and not torch.cuda.is_available())
+    use_gc = not args.no_gradient_checkpointing
+    if use_mps and use_gc:
+        print(
+            "MPS: gradient checkpointing is ON (saves memory, slower). "
+            "Try --no_gradient_checkpointing if you have enough unified memory.",
+            flush=True,
+        )
     use_tensorboard = not args.no_tensorboard
     tensorboard_dir = (
         os.path.abspath(args.tensorboard_dir)
@@ -309,7 +324,7 @@ def main() -> None:
         bf16=use_bf16,
         fp16=(not use_bf16 and torch.cuda.is_available()) or use_mps,
         optim="adamw_torch",
-        gradient_checkpointing=True,
+        gradient_checkpointing=use_gc,
         remove_unused_columns=False,
         report_to="tensorboard" if use_tensorboard else "none",
         logging_dir=tensorboard_dir if use_tensorboard else None,
