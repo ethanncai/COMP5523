@@ -84,3 +84,7 @@ Carthage/Build/
 
 # iOS app: bundled model weights and tokenizer files (re-download locally as needed)
 app/FastVLM/model/
+
+
+dataset*
+plain-photo*

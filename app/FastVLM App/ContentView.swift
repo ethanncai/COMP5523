@@ -23,8 +23,10 @@ struct ContentView: View {
     @State private var preparationComplete = false
     @State private var speechPlayer = SpeechPlayer()
 
-    /// The object the user asked to pick up (extracted from speech).
+    /// The object the user asked to pick up (extracted from speech; UI only).
     @State private var targetObject: String = ""
+    /// Raw user speech used inside the concise prompt (quoted ``User goal`` line).
+    @State private var userGoalSpeech: String = ""
     /// Whether the continuous guidance loop is active.
     @State private var guidanceActive = false
     /// Handle for the running guidance loop task.
@@ -65,7 +67,8 @@ struct ContentView: View {
                     .overlay(alignment: .topTrailing) {
                         if preparationComplete, !guidanceActive {
                             Button {
-                                targetObject = extractObjectName(from: "I want to pick up badge")
+                                userGoalSpeech = "I want to pick up badge"
+                                targetObject = extractObjectName(from: userGoalSpeech)
                                 model.output = ""
                                 startGuidanceLoop()
                             } label: {
@@ -296,6 +299,7 @@ struct ContentView: View {
         let spoken = recognizer.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !spoken.isEmpty else { return }
 
+        userGoalSpeech = spoken
         targetObject = extractObjectName(from: spoken)
         model.output = ""
         startGuidanceLoop()
@@ -352,7 +356,7 @@ struct ContentView: View {
                     continue
                 }
 
-                let prompt = buildGuidancePrompt(for: targetObject)
+                let prompt = ConcisePromptTemplate.prompt(userGoal: userGoalSpeech)
 
                 model.cancel()
                 await model.generate(prompt: prompt, pixelBuffer: frame)
@@ -380,20 +384,6 @@ struct ContentView: View {
         guidanceActive = false
         model.cancel()
         speechPlayer.stop()
-    }
-
-    private func buildGuidancePrompt(for object: String) -> String {
-        "System: You guide a blind person's hand to grab \"\(object)\".\n"
-            + "Rules:\n"
-            + "1. Find the \"\(object)\" in the image.\n"
-            + "2. Find the user's hand in the image.\n"
-            + "3. Compare their positions and output ONE directional command.\n"
-            + "4. Allowed commands ONLY: \"move left\", \"move right\", \"move up\", \"move down\", "
-            + "\"move closer\", \"move back\", \"almost there\", \"open hand\", \"close hand\", \"grab now\".\n"
-            + "5. Output ONLY the command. No other words. No explanation. Maximum 3 words.\n"
-            + "6. If you cannot see the hand, say \"show your hand\".\n"
-            + "7. If you cannot see the object, say \"object not found\".\n\n"
-            + "User: Guide my hand."
     }
 
     // MARK: - Video distribution
