@@ -194,5 +194,23 @@ This script includes useful options such as `--health-only`, a configurable time
 In summary, the `server` module is more than a thin wrapper around the model. It handles startup configuration, resource management, request validation, model reuse, and integration consistency. It is the part of the project that makes the trained model callable in real time and therefore makes the app-side assistive interaction possible.
 
 ## 4. Trainer Module
+### 4.1 Data Preprocessing and Dataset Construction
+### 4.2 Prompt Design
+### 4.3 Model Selection and Fine-tuning Method
+### 4.4 Training Data Organization and Training Objective
+### 4.5 Training Workflow and Implementation Details
+### 4.6 Inference Testing and Performance Evaluation
+
+| Test Item | Description | Value |
+|-----------|-------------|-------|
+| Model | Fine-tuned SmolVLM-256M | TBD |
+| Task | Beverage grasping guidance | TBD |
+| Average latency (ms) | Mean inference time over repeated runs | TBD |
+| Minimum latency (ms) | Best-case inference time | TBD |
+| Maximum latency (ms) | Worst-case inference time | TBD |
+| Std. deviation (ms) | Latency variation across runs | TBD |
+| Number of runs | Total benchmark repetitions | TBD |
+| Hardware | Testing device / platform | TBD |
+### 4.7 Summary
 
 ## 5. Conclusion
