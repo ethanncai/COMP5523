@@ -195,11 +195,72 @@ In summary, the `server` module is more than a thin wrapper around the model. It
 
 ## 4. Trainer Module
 ### 4.1 Data Preprocessing and Dataset Construction
+
+The training data used in this project is built from raw images collected for a beverage-grabbing scenario. Because the original images may come from different devices and may use different file formats, the first step is to standardise them before automatic labeling and model training.
+
+To standardise the image input, the preprocessing pipeline converts supported formats such as PNG, WebP, BMP, TIFF, HEIC, and HEIF into `.jpg`. Files with the `.jpeg` suffix are renamed to `.jpg` directly. Images are converted to RGB and saved as JPEG with a fixed quality setting.
+
+After image standardisation, the dataset is generated automatically rather than labeled fully by hand. A multimodal teacher model is used to examine each image and produce task-specific supervision. In the current pipeline, each image is paired with several beverage targets, including `sprite`, `cola`, and `lemon_tea`. For each target, the teacher model produces a short command-style answer that can later be used as supervision for fine-tuning.
+
+The generated samples are stored in a file-based structure. Each sample uses a stem of the form `<base>__<drink_key>__vNN`, where the middle segment records the target beverage class and the final segment marks the prompt variant. Under this naming scheme, one sample is typically stored as an image file together with a prompt file and an answer file, for example `<stem>.jpg`, `<stem>.prompt.txt`, and `<stem>.ans.txt`. The pipeline can also save intermediate reasoning text, but the final training stage mainly uses the answer file as the supervision target.
+
+This file-based structure also makes the dataset easier to inspect and debug. Because the class information is encoded in the file name, the later training stage can recover the target category without relying on an extra metadata table. In addition, multiple prompt variants can be generated for the same image and class combination, so the dataset can be expanded without requiring a new round of image collection.
+
 ### 4.2 Prompt Design
+
+Prompt design is an important part of the training pipeline because it affects both the quality of the automatically generated labels and the language diversity seen during fine-tuning. In this project, two prompt styles are used for different purposes: a full instruction prompt for teacher-model labeling, and a concise prompt format for student-model training.
+
+For automatic dataset generation, the full prompt gives the teacher model a clear task definition. It frames the problem as blind-assistance guidance and asks the model to output only short spoken-style commands instead of long descriptions. The prompt also restricts the output space to task-relevant responses such as `move left`, `move forward`, `grab now`, `show your hand`, or `object missing`. This keeps the generated labels close to the form required in the final application.
+
+For fine-tuning, a more compact prompt format is used. Instead of relying on one fixed wording, the concise prompt module defines several aliases for each drink category and combines them with multiple pickup-intent templates. For example, the cola target may appear as `cola`, `a cola`, `the cola can`, or `the red-label cola`, while the user request can be phrased as “I want to pick up {name}.”, “Please help me grab {name}.”, or similar alternatives. This makes the language input more varied while keeping the task unchanged.
+
+The prompt system supports both deterministic and random generation. Since each dataset stem already contains the drink key, the target class can be recovered directly from the file name. A deterministic mode can generate a stable prompt for a given stem, while the training pipeline can also sample aliases and templates dynamically. As a result, the same image may appear with slightly different user-goal wording across epochs. This reduces reliance on a single phrasing pattern and makes the model less sensitive to wording changes.
+
+Overall, the prompt design does not change the visual content of the task. Instead, it increases linguistic variation around the same target object, which is helpful for a system expected to respond to naturally phrased user requests.
+
 ### 4.3 Model Selection and Fine-tuning Method
+
+[todo]
+
 ### 4.4 Training Data Organization and Training Objective
+
+Once the dataset has been prepared, each sample must be converted into a format suitable for multimodal instruction tuning. The training stage treats every sample as a paired image–instruction example in which the model receives an image and a user request, and is expected to produce a short guidance command as the response.
+
+The training pipeline supports two prompt modes. In the default concise mode, the target beverage class is parsed directly from the sample stem, and the user-side prompt is generated during training. In the full mode, the prompt is read from the stored prompt file. This design allows the same dataset to support both fixed prompts and dynamically generated prompts, depending on the training setup.
+
+During batch construction, each sample is organised as a short dialogue. The user message contains the image token together with the text prompt, and the assistant message contains the expected answer. These messages are then formatted into the chat-style input required by SmolVLM. In this way, the model sees training data in the same general form that it will later encounter during inference.
+
+The supervision objective is defined only on the assistant response. Tokens that belong to the user prompt are masked out during loss computation, and padding tokens are excluded as well. The special image token is also removed from the loss. Therefore, the optimisation process does not reward the model for repeating the prompt or reproducing formatting tokens. It only rewards the model for generating the target command itself.
+
+This is consistent with the task setting. In the final application, the model is not required to describe the whole image or restate the user request. Its job is to produce the next short action instruction, such as `move left`, `move up`, or `grab now`. By applying the loss only to the assistant side of the sequence, the training objective remains aligned with this deployment goal.
+
+The sample construction workflow is shown below.
+
+```text
+raw image + answer file (+ optional full prompt file)
+        ↓
+recover target class from file name or read stored prompt
+        ↓
+build user message with image + prompt
+        ↓
+append assistant answer
+        ↓
+format sample into chat-style multimodal input
+        ↓
+tokenize and batch samples
+        ↓
+mask prompt tokens, padding tokens, and image token
+        ↓
+compute loss only on assistant answer
+```
+
 ### 4.5 Training Workflow and Implementation Details
+
+[todo]
+
 ### 4.6 Inference Testing and Performance Evaluation
+
+The table below is reserved for future evaluation results.
 
 | Test Item | Description | Value |
 |-----------|-------------|-------|
@@ -211,6 +272,9 @@ In summary, the `server` module is more than a thin wrapper around the model. It
 | Std. deviation (ms) | Latency variation across runs | TBD |
 | Number of runs | Total benchmark repetitions | TBD |
 | Hardware | Testing device / platform | TBD |
+
 ### 4.7 Summary
+
+[todo]
 
 ## 5. Conclusion
