@@ -220,7 +220,13 @@ Overall, the prompt design does not change the visual content of the task. Inste
 
 ### 4.3 Model Selection and Fine-tuning Method
 
-[todo]
+The core of our vision-language reasoning engine is based on the **SmolVLM-256M-Instruct** architecture. This model is a compact yet powerful Vision-Language Model (VLM) that integrates a lightweight vision encoder with a small-scale language model, making it ideal for the latency-sensitive requirements of assistive grasping tasks.
+
+To achieve high-performance adaptation while minimizing the computational footprint, we implement a comprehensive fine-tuning strategy:
+
+* **Model Initialization and Device Mapping**: The system implements an automated hardware detection logic via `pick_device()` and `pick_dtype()`. It dynamically assigns the model to `CUDA` (using `bfloat16`), `MPS` (using `float16`), or `CPU` (using `float32`). This ensures optimal floating-point precision and memory utilization across different training environments.
+* **Low-Rank Adaptation (LoRA) Configuration**: Rather than updating all 256M parameters, we apply **LoRA (Low-Rank Adaptation)** to specific linear projections. According to the `build_lora_config()` implementation, we target the following modules: `q_proj`, `k_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, and `down_proj`. We set the rank ($r$) to 8 and the scaling factor ($\alpha$) to 16, utilizing a dropout rate of 0.05 to prevent overfitting on the specialized grasping dataset.
+* **Quantization Strategy (QLoRA)**: For hardware with limited VRAM, the training pipeline supports **4-bit quantization** through the `BitsAndBytesConfig`. By utilizing the `nf4` (NormalFloat 4) data type and double quantization, the base model weights are frozen in a compressed state, while only the high-precision LoRA adapters remain trainable. The model is further prepared for k-bit training using `prepare_model_for_kbit_training()` to ensure gradient stability.
 
 ### 4.4 Training Data Organization and Training Objective
 
@@ -256,7 +262,35 @@ compute loss only on assistant answer
 
 ### 4.5 Training Workflow and Implementation Details
 
-[todo]
+The training execution is managed by a custom-configured `Trainer` pipeline, which translates the raw dataset into a deployable instruction-following model. The workflow consists of the following technical stages:
+
+* **Execution Arguments**: The system utilizes a sophisticated `TrainingArguments` setup in `train.py`. Key parameters include:
+    * **Optimization**: We employ the `adamw_torch` optimizer with a weight decay of 0.01 and a linear warmup ratio of 0.05.
+    * **Learning Rate Schedule**: A conservative learning rate of $1 \times 10^{-4}$ is used to ensure the pre-trained multimodal representations are not distorted during adaptation.
+    * **Throughput Management**: To simulate a stable global batch size on limited hardware, we combine a `per_device_train_batch_size` (default 1) with `gradient_accumulation_steps` (default 4).
+* **Memory Efficiency Techniques**: To mitigate the high VRAM consumption of multimodal gradients, we enable **Gradient Checkpointing** (`gradient_checkpointing=True`). This reduces memory overhead by recomputing intermediate activations during the backward pass. Additionally, `dataloader_pin_memory` is strategically toggled based on the device type to optimize data transfer speeds between CPU and GPU.
+* **Logging and Checkpointing Strategy**: 
+    * **Monitoring**: The pipeline integrates **TensorBoard** via the `report_to="tensorboard"` argument. It logs training loss and optimization metrics every 5 steps, providing granular visibility into the convergence process.
+    * **Persistence**: We implement an epoch-based saving strategy (`save_strategy="epoch"`) with a `save_total_limit=2`. This ensures that the system automatically retains the most recent checkpoints while discarding older ones to manage storage efficiency.
+* **Post-Training Artifacts**: Upon completion of `trainer.train()`, the system explicitly saves the final LoRA adapters and the associated `AutoProcessor`. This ensures that the specific tokenization and image rescaling logic used during training are perfectly preserved for the inference server.
+
+The training workflow is shown below:
+
+```text
+Initialize hardware and precision (pick_device & pick_dtype)
+        ↓
+Configure quantization (BitsAndBytes 4-bit NF4)
+        ↓
+Inject LoRA adapters into target modules (q_proj, down_proj, etc.)
+        ↓
+Collate multimodal input samples via chat template
+        ↓
+Execute training loop with AdamW and Gradient Checkpointing
+        ↓
+Monitor convergence via TensorBoard logging
+        ↓
+Export final LoRA adapters and AutoProcessor configuration
+```
 
 ### 4.6 Inference Testing and Performance Evaluation
 
@@ -275,6 +309,8 @@ The table below is reserved for future evaluation results.
 
 ### 4.7 Summary
 
-[todo]
+The `trainer` module provides a robust and scalable infrastructure for specialized VLM adaptation. By leveraging **SmolVLM-256M-Instruct** as a foundation and applying **PEFT/LoRA** techniques, the system bridges the gap between general-purpose vision models and domain-specific assistive tools. 
+
+The implementation effectively addresses three critical challenges: (1) **Data Efficiency**, through the use of target-aware prompt generation; (2) **Computational Efficiency**, through QLoRA and gradient checkpointing; and (3) **Deployment Readiness**, by outputting standardized adapter weights compatible with the real-time inference server. This training architecture ensures that the final model can provide accurate, low-latency spatial guidance for visually impaired users in diverse household environments.
 
 ## 5. Conclusion
