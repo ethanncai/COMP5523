@@ -274,24 +274,6 @@ The training execution is managed by a custom-configured `Trainer` pipeline, whi
     * **Persistence**: We implement an epoch-based saving strategy (`save_strategy="epoch"`) with a `save_total_limit=2`. This ensures that the system automatically retains the most recent checkpoints while discarding older ones to manage storage efficiency.
 * **Post-Training Artifacts**: Upon completion of `trainer.train()`, the system explicitly saves the final LoRA adapters and the associated `AutoProcessor`. This ensures that the specific tokenization and image rescaling logic used during training are perfectly preserved for the inference server.
 
-The training workflow is shown below:
-
-```text
-Initialize hardware and precision (pick_device & pick_dtype)
-        ↓
-Configure quantization (BitsAndBytes 4-bit NF4)
-        ↓
-Inject LoRA adapters into target modules (q_proj, down_proj, etc.)
-        ↓
-Collate multimodal input samples via chat template
-        ↓
-Execute training loop with AdamW and Gradient Checkpointing
-        ↓
-Monitor convergence via TensorBoard logging
-        ↓
-Export final LoRA adapters and AutoProcessor configuration
-```
-
 ### 4.6 Inference Testing and Performance Evaluation
 
 The table below is reserved for future evaluation results.
