@@ -89,85 +89,57 @@ The current server returns a complete JSON response only after generation finish
 
 
 ## 4. Trainer Module
+
 ### 4.1 Data Preprocessing and Dataset Construction
 
-The training data used in this project is built from raw images collected for a beverage-grabbing scenario. Because the original images may come from different devices and may use different file formats, the first step is to standardise them before automatic labeling and model training.
+The training set is built from raw images collected for a beverage-grabbing task. Since the original data may use different image formats, the preprocessing stage first standardises them before labeling and training.
 
-To standardise the image input, the preprocessing pipeline converts supported formats such as PNG, WebP, BMP, TIFF, HEIC, and HEIF into `.jpg`. Files with the `.jpeg` suffix are renamed to `.jpg` directly. Images are converted to RGB and saved as JPEG with a fixed quality setting.
+In the current pipeline, supported formats such as PNG, WebP, BMP, TIFF, HEIC, and HEIF are converted into `.jpg`. Files with the `.jpeg` suffix are renamed to `.jpg` directly. During this process, images are converted to RGB and saved as JPEG with a fixed quality setting.
 
-After image standardisation, the dataset is generated automatically rather than labeled fully by hand. A multimodal teacher model is used to examine each image and produce task-specific supervision. In the current pipeline, each image is paired with several beverage targets, including `sprite`, `cola`, and `lemon_tea`. For each target, the teacher model produces a short command-style answer that can later be used as supervision for fine-tuning.
+After preprocessing, the dataset is generated automatically rather than labeled fully by hand. A multimodal teacher model is used to examine each image and produce short command-style supervision for the target beverage classes, including `sprite`, `cola`, and `lemon_tea`.
 
-The generated samples are stored in a file-based structure. Each sample uses a stem of the form `<base>__<drink_key>__vNN`, where the middle segment records the target beverage class and the final segment marks the prompt variant. Under this naming scheme, one sample is typically stored as an image file together with a prompt file and an answer file, for example `<stem>.jpg`, `<stem>.prompt.txt`, and `<stem>.ans.txt`. The pipeline can also save intermediate reasoning text, but the final training stage mainly uses the answer file as the supervision target.
-
-This file-based structure also makes the dataset easier to inspect and debug. Because the class information is encoded in the file name, the later training stage can recover the target category without relying on an extra metadata table. In addition, multiple prompt variants can be generated for the same image and class combination, so the dataset can be expanded without requiring a new round of image collection.
+Each sample is stored with a structured stem of the form `<base>__<drink_key>__vNN`. A typical sample contains an image file, a prompt file, and an answer file, such as `<stem>.jpg`, `<stem>.prompt.txt`, and `<stem>.ans.txt`. Intermediate reasoning text may also be saved, but the final training stage mainly uses the answer file. Because the class information is encoded in the file name, the later training pipeline can recover the target category directly.
 
 ### 4.2 Prompt Design
 
-Prompt design is an important part of the training pipeline because it affects both the quality of the automatically generated labels and the language diversity seen during fine-tuning. In this project, two prompt styles are used for different purposes: a full instruction prompt for teacher-model labeling, and a concise prompt format for student-model training.
+Prompt design is used in both dataset generation and fine-tuning. In this project, two prompt styles are used: a full instruction prompt for teacher-model labeling, and a concise prompt format for student-model training.
 
-For automatic dataset generation, the full prompt gives the teacher model a clear task definition. It frames the problem as blind-assistance guidance and asks the model to output only short spoken-style commands instead of long descriptions. The prompt also restricts the output space to task-relevant responses such as `move left`, `move forward`, `grab now`, `show your hand`, or `object missing`. This keeps the generated labels close to the form required in the final application.
+For automatic labeling, the full prompt defines the task as blind-assistance guidance and restricts the output to short spoken-style commands such as `move left`, `move forward`, `grab now`, `show your hand`, or `object missing`. This keeps the generated labels close to the output format required by the final system.
 
-For fine-tuning, a more compact prompt format is used. Instead of relying on one fixed wording, the concise prompt module defines several aliases for each drink category and combines them with multiple pickup-intent templates. For example, the cola target may appear as `cola`, `a cola`, `the cola can`, or `the red-label cola`, while the user request can be phrased as “I want to pick up {name}.”, “Please help me grab {name}.”, or similar alternatives. This makes the language input more varied while keeping the task unchanged.
-
-The prompt system supports both deterministic and random generation. Since each dataset stem already contains the drink key, the target class can be recovered directly from the file name. A deterministic mode can generate a stable prompt for a given stem, while the training pipeline can also sample aliases and templates dynamically. As a result, the same image may appear with slightly different user-goal wording across epochs. This reduces reliance on a single phrasing pattern and makes the model less sensitive to wording changes.
-
-Overall, the prompt design does not change the visual content of the task. Instead, it increases linguistic variation around the same target object, which is helpful for a system expected to respond to naturally phrased user requests.
+For fine-tuning, a concise prompt mechanism is used. Each drink category has multiple aliases, and these are combined with different pickup-intent templates. For example, the cola target may appear as `cola`, `a cola`, `the cola can`, or `the red-label cola`, while the user request may be written in different short forms. The prompt can be generated either deterministically from the sample stem or randomly during training. This makes the language input more varied and reduces dependence on a single phrasing pattern.
 
 ### 4.3 Model Selection and Fine-tuning Method
 
-The core of our vision-language reasoning engine is based on the **SmolVLM-256M-Instruct** architecture. This model is a compact yet powerful Vision-Language Model (VLM) that integrates a lightweight vision encoder with a small-scale language model, making it ideal for the latency-sensitive requirements of assistive grasping tasks.
+The model used in this project is **SmolVLM-256M-Instruct**. It is a lightweight vision-language model, which is suitable for this task because the system needs to run with limited computing resources and respond quickly.
 
-To achieve high-performance adaptation while minimizing the computational footprint, we implement a comprehensive fine-tuning strategy:
+For adaptation, the training pipeline uses **LoRA** instead of full-parameter fine-tuning. In the training script, LoRA is applied to key projection layers in the transformer, including attention layers and MLP layers. The pipeline also supports 4-bit quantization when suitable hardware is available, which helps reduce memory usage during training.
 
-* **Model Initialization and Device Mapping**: The system implements an automated hardware detection logic via `pick_device()` and `pick_dtype()`. It dynamically assigns the model to `CUDA` (using `bfloat16`), `MPS` (using `float16`), or `CPU` (using `float32`). This ensures optimal floating-point precision and memory utilization across different training environments.
-* **Low-Rank Adaptation (LoRA) Configuration**: Rather than updating all 256M parameters, we apply **LoRA (Low-Rank Adaptation)** to specific linear projections. According to the `build_lora_config()` implementation, we target the following modules: `q_proj`, `k_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, and `down_proj`. We set the rank ($r$) to 8 and the scaling factor ($\alpha$) to 16, utilizing a dropout rate of 0.05 to prevent overfitting on the specialized grasping dataset.
-* **Quantization Strategy (QLoRA)**: For hardware with limited VRAM, the training pipeline supports **4-bit quantization** through the `BitsAndBytesConfig`. By utilizing the `nf4` (NormalFloat 4) data type and double quantization, the base model weights are frozen in a compressed state, while only the high-precision LoRA adapters remain trainable. The model is further prepared for k-bit training using `prepare_model_for_kbit_training()` to ensure gradient stability.
+![Figure 4.1. Overall pipeline of the model and application workflow.](figure4.1.jpg)
+
+*Figure 4.1. Overall pipeline of the model and application workflow.*
 
 ### 4.4 Training Data Organization and Training Objective
 
-Once the dataset has been prepared, each sample must be converted into a format suitable for multimodal instruction tuning. The training stage treats every sample as a paired image–instruction example in which the model receives an image and a user request, and is expected to produce a short guidance command as the response.
+During training, each sample is treated as a paired image–instruction example. The model receives an image together with a user request and is trained to generate a short guidance command as the answer.
 
-The training pipeline supports two prompt modes. In the default concise mode, the target beverage class is parsed directly from the sample stem, and the user-side prompt is generated during training. In the full mode, the prompt is read from the stored prompt file. This design allows the same dataset to support both fixed prompts and dynamically generated prompts, depending on the training setup.
+The training pipeline supports two prompt modes. In the default concise mode, the drink class is parsed directly from the sample stem and the prompt is generated during training. In the full mode, the prompt is read from the stored prompt file. This allows the same dataset to support both stored prompts and dynamically generated prompts.
 
-During batch construction, each sample is organised as a short dialogue. The user message contains the image token together with the text prompt, and the assistant message contains the expected answer. These messages are then formatted into the chat-style input required by SmolVLM. In this way, the model sees training data in the same general form that it will later encounter during inference.
+During batch construction, each sample is organised as a short dialogue. The user side contains the image token and the text prompt, while the assistant side contains the expected answer. These messages are then converted into the chat-style input required by SmolVLM.
 
-The supervision objective is defined only on the assistant response. Tokens that belong to the user prompt are masked out during loss computation, and padding tokens are excluded as well. The special image token is also removed from the loss. Therefore, the optimisation process does not reward the model for repeating the prompt or reproducing formatting tokens. It only rewards the model for generating the target command itself.
+The loss is applied only to the assistant response. Tokens from the user prompt are masked out during loss computation, and padding tokens and the image token are excluded as well. As a result, the model is trained to generate the target command itself rather than repeat the prompt.
 
-This is consistent with the task setting. In the final application, the model is not required to describe the whole image or restate the user request. Its job is to produce the next short action instruction, such as `move left`, `move up`, or `grab now`. By applying the loss only to the assistant side of the sequence, the training objective remains aligned with this deployment goal.
+![Figure 4.2. Teacher–student training idea used in the project.](figure4.2.jpg)
 
-The sample construction workflow is shown below.
-
-```text
-raw image + answer file (+ optional full prompt file)
-        ↓
-recover target class from file name or read stored prompt
-        ↓
-build user message with image + prompt
-        ↓
-append assistant answer
-        ↓
-format sample into chat-style multimodal input
-        ↓
-tokenize and batch samples
-        ↓
-mask prompt tokens, padding tokens, and image token
-        ↓
-compute loss only on assistant answer
-```
+*Figure 4.2. Teacher–student training idea used in the project.*
 
 ### 4.5 Training Workflow and Implementation Details
 
-The training execution is managed by a custom-configured `Trainer` pipeline, which translates the raw dataset into a deployable instruction-following model. The workflow consists of the following technical stages:
+Training is implemented with the Hugging Face `Trainer` pipeline. The script sets the main training arguments, including batch size, learning rate, gradient accumulation, and checkpoint saving. To reduce memory usage, the training process supports gradient checkpointing, and TensorBoard is used for logging.
 
-* **Execution Arguments**: The system utilizes a sophisticated `TrainingArguments` setup in `train.py`. Key parameters include:
-    * **Optimization**: We employ the `adamw_torch` optimizer with a weight decay of 0.01 and a linear warmup ratio of 0.05.
-    * **Learning Rate Schedule**: A conservative learning rate of $1 \times 10^{-4}$ is used to ensure the pre-trained multimodal representations are not distorted during adaptation.
-    * **Throughput Management**: To simulate a stable global batch size on limited hardware, we combine a `per_device_train_batch_size` (default 1) with `gradient_accumulation_steps` (default 4).
-* **Memory Efficiency Techniques**: To mitigate the high VRAM consumption of multimodal gradients, we enable **Gradient Checkpointing** (`gradient_checkpointing=True`). This reduces memory overhead by recomputing intermediate activations during the backward pass. Additionally, `dataloader_pin_memory` is strategically toggled based on the device type to optimize data transfer speeds between CPU and GPU.
-* **Logging and Checkpointing Strategy**: 
-    * **Monitoring**: The pipeline integrates **TensorBoard** via the `report_to="tensorboard"` argument. It logs training loss and optimization metrics every 5 steps, providing granular visibility into the convergence process.
-    * **Persistence**: We implement an epoch-based saving strategy (`save_strategy="epoch"`) with a `save_total_limit=2`. This ensures that the system automatically retains the most recent checkpoints while discarding older ones to manage storage efficiency.
-* **Post-Training Artifacts**: Upon completion of `trainer.train()`, the system explicitly saves the final LoRA adapters and the associated `AutoProcessor`. This ensures that the specific tokenization and image rescaling logic used during training are perfectly preserved for the inference server.
+After training, the LoRA adapter and the corresponding processor are saved for later inference. This keeps the training and deployment settings consistent.
+
+![Figure 4.3. LoRA training result and loss curve.](figure4.3.jpg) 
+*Figure 4.3. LoRA training result and loss curve.*
 
 ### 4.6 Inference Testing and Performance Evaluation
 
@@ -186,8 +158,7 @@ The table below is reserved for future evaluation results.
 
 ### 4.7 Summary
 
-The `trainer` module provides a robust and scalable infrastructure for specialized VLM adaptation. By leveraging **SmolVLM-256M-Instruct** as a foundation and applying **PEFT/LoRA** techniques, the system bridges the gap between general-purpose vision models and domain-specific assistive tools. 
+The trainer module covers dataset preparation, prompt construction, and model fine-tuning for the beverage-grabbing task. It connects raw image data, automatically generated supervision, and the final model used by the later inference system.
 
-The implementation effectively addresses three critical challenges: (1) **Data Efficiency**, through the use of target-aware prompt generation; (2) **Computational Efficiency**, through QLoRA and gradient checkpointing; and (3) **Deployment Readiness**, by outputting standardized adapter weights compatible with the real-time inference server. This training architecture ensures that the final model can provide accurate, low-latency spatial guidance for visually impaired users in diverse household environments.
 
 ## 5. Conclusion
