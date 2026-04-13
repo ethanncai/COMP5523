@@ -2,20 +2,20 @@
 
 ## 1. Project Overview
 
-This project is an assistive vision-language system designed to help a visually impaired user locate and grasp a target drink. The system combines real-time camera input, speech interaction, vision-language inference, and spoken feedback. A user first speaks the object they want to pick up, such as a bottle of cola or Sprite. The client application captures the latest camera frame and sends it together with a concise task prompt to the backend server. The server runs the fine-tuned model and returns a short action-oriented instruction, such as "move left", "move forward", or "grab now". The application then reads this instruction aloud and continues the process in a loop until the user stops the guidance session.
+This project is an assistive vision-language system designed to help a visually impaired user locate and grasp a target drink, which connects real-time camera input, speech interaction, vision-language inference, and spoken feedback. A user who says the object they want to pick up, such as a bottle of cola or Sprite. The client application captures the latest camera frame and sends it together with a concise task prompt to the backend server. The server runs the fine-tuned model and returns a short action-oriented instruction, such as "move left", "move forward", or "grab now". The application then reads this instruction aloud and continues the process in a loop until the user stops the guidance session.
 
-From a system perspective, the repository is organized into three main parts: `app`, `server`, and `trainer`. The `app` module is responsible for user interaction and device-side media processing. The `server` module provides a deployable inference service for the model. The `trainer` module contains the scripts used for data preparation, model tuning, and offline inference. In the current implementation, the end-to-end user experience mainly depends on the coordination between the app and the server.
+From a system perspective, the repository contains three main parts: `app`, `server`, and `trainer`. The `app` module is responsible for user interaction and device-side media processing. The `server` module provides a deployable inference service for the model. The `trainer` module contains the scripts used for data preparation, model tuning, and offline inference. In the current implementation, the end-to-end user experience mainly depends on the coordination between the app and the server.
 
 
 ## 2. App Module
 
-The `app` module is the interactive front end of the project and is responsible for turning the model into a usable assistive tool. Instead of treating inference as an offline experiment, the app provides a real-time workflow in which the user speaks a target object, the device captures the surrounding scene, and the system returns spoken step-by-step guidance. This module is therefore not only a visualization layer, but also the component that manages user interaction, device permissions, media input, networking, and speech output.
+The `app` module is the interactive front end of the project and is responsible for turning the model into a usable assistive tool. The app provides a real-time workflow in which the user speaks a target object, the device captures the surrounding scene, and the system returns spoken step-by-step guidance. This module is therefore not only a visualization layer, but also the component that manages user interaction, device permissions, media input, networking, and speech output.
 
-The app is implemented with SwiftUI, and its control center is `app/FastVLM App/ContentView.swift`. This file coordinates the major runtime objects of the application, including `CameraController`, `RemoteVLMModel`, `SpeechRecognizer`, and `SpeechPlayer`. It also stores the key interface states used during interaction, such as the latest frame, the current transcript, whether guidance is active, and the currently displayed output. From an implementation point of view, `ContentView` acts as a lightweight state machine for the whole assistive loop.
+The app is implemented with SwiftUI, and its control center is `app/FastVLM App/ContentView.swift`. This file coordinates the major runtime objects of the application, including `CameraController`, `RemoteVLMModel`, `SpeechRecognizer`, and `SpeechPlayer`. It also stores the key interface states used during interaction, such as the latest frame, the current transcript, whether guidance is active, and the currently displayed output.
 
 ### 2.1 Startup and Preparation Logic
 
-On launch, the view asynchronously configures the `AVAudioSession` in `.playAndRecord` mode, starts the camera, requests speech and microphone permissions, verifies server connectivity via `model.load()`, and begins distributing video frames to the UI. All checks complete before a `preparationComplete` flag is set, keeping the interface disabled until every component is ready. This upfront initialization avoids delays and diagnostic difficulties that would arise if permissions or backend availability were only checked at the moment of first interaction.
+On launch, the view asynchronously configures the `AVAudioSession` in `.playAndRecord` mode, starts the camera, requests speech and microphone permissions, verifies server connectivity via `model.load()`, and begins distributing video frames to the UI. All checks complete before a `preparationComplete` flag is set, keeping the interface disabled until every component is ready. If permissions or back-end availability are only checked during the first interaction, this early initialization can avoid delays and diagnostic difficulties.
 
 ### 2.2 Speech Interaction Design
 
@@ -27,13 +27,12 @@ The push-to-talk interaction uses a `DragGesture(minimumDistance: 0)` in `Conten
 
 The camera subsystem is implemented in `CameraController.swift`, which wraps `AVCaptureSession` and preferentially selects a wide-angle or ultra-wide camera so that both the user's hand and the target object remain visible in the same frame.
 
-Captured frames flow through `AsyncStream<CMSampleBuffer>` → `AsyncStream<CVImageBuffer>` with `.bufferingNewest(1)`, meaning only the latest frame is retained. This avoids accumulating lag during slower inference or speech playback. `VideoFrameView.swift` renders the preview, while `ContentView` independently stores `latestFrame` for inference, keeping display and model logic decoupled. On iOS, `AVCaptureDevice.RotationCoordinator` dynamically corrects orientation as the device moves.
+Captured frames flow through `AsyncStream<CMSampleBuffer>` → `AsyncStream<CVImageBuffer>` with `.bufferingNewest(1)`, which means only the latest frame is retained. This avoids accumulating lag during slower inference or speech playback. `VideoFrameView.swift` renders the preview, while `ContentView` independently stores `latestFrame` for inference, keeping display and model logic decoupled. On iOS, `AVCaptureDevice.RotationCoordinator` dynamically corrects orientation as the device moves.
 
 ### 2.4 Continuous Guidance Loop
 
 The core runtime behavior is the continuous guidance loop in `startGuidanceLoop()`. After the user speaks a command, the app repeatedly reads the latest frame, constructs a prompt, calls remote inference, speaks the returned instruction aloud, and waits until playback finishes before starting the next iteration. The user can stop guidance at any time via `stopGuidance()`, which cancels the task and resets all state.
 
-The loop is intentionally serial: the next request is never sent while the previous instruction is still being spoken. This sacrifices some throughput but prevents overlapping commands from confusing the user, which is critical in an assistive context.
 
 ### 2.5 Prompt Construction and Response Constraints
 
@@ -49,11 +48,9 @@ The `load()` method sends a `GET /health` request to verify server connectivity.
 
 The final stage of the app-side pipeline is speech synthesis, implemented in `SpeechPlayer.swift`. This class wraps `AVSpeechSynthesizer` and exposes two important methods: `speak()` and `waitUntilDone()`. The `speak()` method stops any current utterance before starting a new one, preventing overlapping speech. The `waitUntilDone()` method bridges the speech synthesizer delegate callbacks into an async continuation, which allows the guidance loop to pause until playback is complete.
 
-This synchronization between speech output and the guidance loop is a key implementation detail. Without it, the app would continue requesting new instructions while the previous one was still being spoken, which would make the interaction much harder to follow. By serializing inference and playback together, the app provides a more coherent assistive experience.
-
 ## 3. Server Module
 
-The `server` module is the deployable inference layer of the project. Its role is to keep the trained model loaded in memory, expose a simple HTTP API, and convert app-side requests into multimodal inference results. This module is implemented with FastAPI in `server/main.py`, and it is designed as a lightweight but structured service rather than a one-off experiment script. In the overall system, the server is the bridge between the mobile client and the model produced by the training pipeline.
+The `server` module is the deployable inference layer of the project. It is responsible for keeping the trained model loaded in memory, exposing a simple HTTP API, and converting app-side requests into multimodal inference results. This module is implemented with FastAPI, and it is designed as a lightweight but structured service. In the overall system, the server is the bridge between the mobile client and the model produced by the training pipeline.
 
 ### 3.1 Service Interface and API Design
 
@@ -63,19 +60,17 @@ The backend exposes two endpoints. `GET /health` returns a small JSON object ind
 - `image`, which contains the current frame encoded as an image file,
 - `max_new_tokens`, which controls the maximum length of generation.
 
-The response is returned in JSON format with a cleaned `text` field and a `raw` field containing the full decoded generation. Returning both forms is useful during development. The app normally uses only the cleaned text, but the raw output is helpful for debugging prompt formatting and model behavior.
+The response is returned in JSON format with a cleaned `text` field and a `raw` field which contains the full decoded generation. The app normally uses only the cleaned text, but the raw output is helpful for debugging prompt formatting and model behavior.
 
 ### 3.2 Startup Path and Configuration
 
-The server can be launched either with `python -m server.main` or through `uvicorn`. Startup parameters include the base model path, LoRA adapter path, host, port, and an optional device override. Internally, the entry point parses command-line arguments, normalizes local paths to absolute paths, places the final values into environment variables, and then starts the FastAPI app. The repository also includes `server/__main__.py`, which allows `python -m server` to work as a short convenience command.
-
-One useful implementation detail is `_normalize_model_path()`. This helper keeps Hugging Face model identifiers unchanged but converts local model directories into absolute paths. This avoids failures caused by changing the current working directory when launching the service. Since model loading can already be fragile, reducing path-related ambiguity is valuable in practice.
+ Startup parameters include the base model path, LoRA adapter path, host, port, and an optional device override. Internally, the entry point parses command-line arguments, normalizes local paths to absolute paths, places the final values into environment variables, and then starts the FastAPI app. One useful implementation detail is `_normalize_model_path()`. This helper keeps Hugging Face model identifiers unchanged but converts local model directories into absolute paths. This avoids failures caused by changing the current working directory when launching the service. Since model loading can already be fragile, reducing path-related ambiguity is valuable in practice.
 
 ### 3.3 Model Lifecycle Management
 
-The most important server-side implementation choice is that the model is loaded once during application startup rather than once per request. This is handled through FastAPI's lifespan function. During startup, the server reads `SMOL_MODEL_PATH`, `SMOL_ADAPTER_PATH`, and the optional `SMOL_DEVICE`, then calls `load_model_and_processor()` from `trainer/infer.py`. The returned model, processor, and resolved device are stored in a process-level dictionary named `_state`.
+The model is loaded once during application startup rather than once per request. This is handled through FastAPI's lifespan function. During startup, the server reads `SMOL_MODEL_PATH`, `SMOL_ADAPTER_PATH`, and the optional `SMOL_DEVICE`, then calls `load_model_and_processor()`. The returned model, processor, and resolved device are stored in a process-level dictionary named `_state`.
 
-This design has several advantages. First, it avoids the extremely high cost of repeatedly loading a multimodal model and adapter on every request. Second, it keeps inference latency low enough for interactive use. Third, it makes the server architecture closer to a real deployment service, where model initialization is expensive but inference calls are frequent. On shutdown, the lifespan function clears the stored state and, when CUDA is available, explicitly frees cached GPU memory through `torch.cuda.empty_cache()`.
+This design has several advantages. First of all, it avoids the extremely high cost of repeatedly loading multimodal models and adapters in each request. Secondly, it maintains a low enough reasoning delay for interactive use. Finally, it brings the server architecture closer to the real deployment service, in which the model initialization cost is very high, but the reasoning calls are frequent. 
 
 ### 3.4 Request Handling Flow
 
@@ -85,7 +80,7 @@ The `/infer` endpoint validates the `max_new_tokens` range, reads and decodes th
 
 Rather than duplicating model logic, the server reuses shared functions from `trainer/infer.py`, including `pick_device()` / `pick_dtype()` for hardware selection, `load_model_and_processor()` for loading the base model with an optional LoRA adapter, and `infer_one()` for running a single image-plus-prompt inference pass. `infer_one()` formats the input as a chat-style message, applies the processor's template, runs `model.generate()`, and returns the decoded result after `extract_assistant()` strips away the prompt scaffolding. Sharing this code path between offline evaluation and the deployed server ensures consistent preprocessing and prompt formatting.
 
-The current server returns a complete JSON response only after generation finishes. It does not stream partial tokens. This was a deliberate design choice. A streaming interface would be more complex to implement on both the server and app sides, especially because the app is designed to speak complete short commands rather than partial text fragments. In the current task setting, a single compact response is simpler, more reliable, and easier to integrate with the client's serial guidance loop.
+The current server will return the complete JSON response only after the generation is completed. It does not stream some tokens. This is a deliberate design choice. The implementation of the streaming media interface on the server and application side will be more complicated, especially because the application is designed to say complete short commands, not some text fragments. In the current task settings, a single compact response is simpler, more reliable, and easier to integrate with the client's serial boot loop.
 
 
 ## 4. Trainer Module
