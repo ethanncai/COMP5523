@@ -92,7 +92,7 @@ The current server returns a complete JSON response only after generation finish
 
 ### 4.1 Data Preprocessing and Dataset Construction
 
-The training set is built from raw images collected for a beverage-grabbing task. Since the original data may use different image formats, the preprocessing stage first standardises them before labeling and training.
+The training dataset is constructed from raw images collected during the beverage-grabbing task. Since the original data may use different image formats, the preprocessing stage first standardises them before labeling and training.
 
 In the current pipeline, supported formats such as PNG, WebP, BMP, TIFF, HEIC, and HEIF are converted into `.jpg`. Files with the `.jpeg` suffix are renamed to `.jpg` directly. During this process, images are converted to RGB and saved as JPEG with a fixed quality setting.
 
@@ -112,9 +112,9 @@ For fine-tuning, a concise prompt mechanism is used. Each drink category has mul
 
 The model used in this project is **SmolVLM-256M-Instruct**. It is a lightweight vision-language model, which is suitable for this task because the system needs to run with limited computing resources and respond quickly.
 
-For adaptation, the training pipeline uses **LoRA** instead of full-parameter fine-tuning. In the training script, LoRA is applied to key projection layers in the transformer, including attention layers and MLP layers. The pipeline also supports 4-bit quantization when suitable hardware is available, which helps reduce memory usage during training.
+For adaptation, the training pipeline uses **LoRA** instead of full-parameter fine-tuning. In the training script, LoRA is applied to key projection layers in the transformer, including attention layers and MLP layers. The pipeline also supports 4-bit quantization on compatible CUDA hardware, which helps reduce memory usage during training.
 
-![Figure 4.1. Overall pipeline of the model and application workflow.](figure4.1.jpg)
+![Figure 4.1. Overall pipeline of the model and application workflow.](figure4_1.png)
 
 *Figure 4.1. Overall pipeline of the model and application workflow.*
 
@@ -128,7 +128,7 @@ During batch construction, each sample is organised as a short dialogue. The use
 
 The loss is applied only to the assistant response. Tokens from the user prompt are masked out during loss computation, and padding tokens and the image token are excluded as well. As a result, the model is trained to generate the target command itself rather than repeat the prompt.
 
-![Figure 4.2. Teacher–student training idea used in the project.](figure4.2.jpg)
+![Figure 4.2. Teacher–student training idea used in the project.](figure4_2.png)
 
 *Figure 4.2. Teacher–student training idea used in the project.*
 
@@ -138,7 +138,8 @@ Training is implemented with the Hugging Face `Trainer` pipeline. The script set
 
 After training, the LoRA adapter and the corresponding processor are saved for later inference. This keeps the training and deployment settings consistent.
 
-![Figure 4.3. LoRA training result and loss curve.](figure4.3.jpg) 
+![Figure 4.3. LoRA training result and loss curve.](figure4_3.png)
+
 *Figure 4.3. LoRA training result and loss curve.*
 
 ### 4.6 Inference Testing and Performance Evaluation
