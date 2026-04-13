@@ -2,20 +2,17 @@
 
 ## 1. Project Overview
 
-This project is an assistive vision-language system designed to help a visually impaired user locate and grasp a target drink, which connects real-time camera input, speech interaction, vision-language inference, and spoken feedback. A user who says the object they want to pick up, such as a bottle of cola or Sprite. The client application captures the latest camera frame and sends it together with a concise task prompt to the backend server. The server runs the fine-tuned model and returns a short action-oriented instruction, such as "move left", "move forward", or "grab now". The application then reads this instruction aloud and continues the process in a loop until the user stops the guidance session.
-
-From a system perspective, the repository contains three main parts: `app`, `server`, and `trainer`. The `app` module is responsible for user interaction and device-side media processing. The `server` module provides a deployable inference service for the model. The `trainer` module contains the scripts used for data preparation, model tuning, and offline inference. In the current implementation, the end-to-end user experience mainly depends on the coordination between the app and the server.
-
+This project is an assistive vision-language system designed to help a visually impaired user locate and grasp a target drink, which connects real-time camera input, speech interaction, vision-language inference, and spoken feedback. The system utilizes Apple STT and Apple TTS to translate fluently between text and speech which enables smooth interaction. A user who says the object they want to pick up, such as a bottle of cola or Sprite. The client application captures the latest camera frame and sends it together with a concise task prompt to the backend server. The server runs the fine-tuned model and returns a short action-oriented instruction, such as "move left", "move forward", or "grab now". The application then reads this instruction aloud and continues the process in a loop until the user stops the guidance session.
 
 ## 2. App Module
 
 The `app` module is the interactive front end of the project and is responsible for turning the model into a usable assistive tool. The app provides a real-time workflow in which the user speaks a target object, the device captures the surrounding scene, and the system returns spoken step-by-step guidance. This module is therefore not only a visualization layer, but also the component that manages user interaction, device permissions, media input, networking, and speech output.
 
-The app is implemented with SwiftUI, and its control center is `app/FastVLM App/ContentView.swift`. This file coordinates the major runtime objects of the application, including `CameraController`, `RemoteVLMModel`, `SpeechRecognizer`, and `SpeechPlayer`. It also stores the key interface states used during interaction, such as the latest frame, the current transcript, whether guidance is active, and the currently displayed output.
+The app is implemented with SwiftUI, and its control center is `app/FastVLM App/ContentView.swift`, which coordinates the major runtime objects of the application, containing `CameraController`, `RemoteVLMModel`, `SpeechRecognizer`, and `SpeechPlayer`. It also stores the key interface states used during interaction, such as the latest frame, the current transcript, whether guidance is active, and the currently displayed output.
 
 ### 2.1 Startup and Preparation Logic
 
-On launch, the view asynchronously configures the `AVAudioSession` in `.playAndRecord` mode, starts the camera, requests speech and microphone permissions, verifies server connectivity via `model.load()`, and begins distributing video frames to the UI. All checks complete before a `preparationComplete` flag is set, keeping the interface disabled until every component is ready. If permissions or back-end availability are only checked during the first interaction, this early initialization can avoid delays and diagnostic difficulties.
+On launch, the view asynchronously configures the `AVAudioSession` in `.playAndRecord` mode, starts the camera, requests speech and microphone permissions, verifies server connectivity via `model.load()`, and begins distributing video frames to the UI. All checks complete before a `preparationComplete` flag is set, keeping the interface disabled until every component is ready. The early initialization can avoid delays and diagnostic difficulties as permissions and back-end availability check at the beginning of the interaction.
 
 ### 2.2 Speech Interaction Design
 
@@ -25,36 +22,36 @@ The push-to-talk interaction uses a `DragGesture(minimumDistance: 0)` in `Conten
 
 ### 2.3 Camera Pipeline and Frame Management
 
-The camera subsystem is implemented in `CameraController.swift`, which wraps `AVCaptureSession` and preferentially selects a wide-angle or ultra-wide camera so that both the user's hand and the target object remain visible in the same frame.
+The camera subsystem is implemented in 、`CameraController.swift`, which wraps `AVCaptureSession` and gives priority to wide-angle or ultra-wide-angle cameras so that the user's hand and the target object can be visible in the same frame.
 
 Captured frames flow through `AsyncStream<CMSampleBuffer>` → `AsyncStream<CVImageBuffer>` with `.bufferingNewest(1)`, which means only the latest frame is retained. This avoids accumulating lag during slower inference or speech playback. `VideoFrameView.swift` renders the preview, while `ContentView` independently stores `latestFrame` for inference, keeping display and model logic decoupled. On iOS, `AVCaptureDevice.RotationCoordinator` dynamically corrects orientation as the device moves.
 
 ### 2.4 Continuous Guidance Loop
 
-The core runtime behavior is the continuous guidance loop in `startGuidanceLoop()`. After the user speaks a command, the app repeatedly reads the latest frame, constructs a prompt, calls remote inference, speaks the returned instruction aloud, and waits until playback finishes before starting the next iteration. The user can stop guidance at any time via `stopGuidance()`, which cancels the task and resets all state.
+The core runtime behavior is the continuous guidance loop in `startGuidanceLoop()`. After the user speaks a command, the app repeatedly reads the latest frame, constructs a prompt, calls remote inference, speaks the returned instruction aloud, and waits until playback finishes before starting the next iteration. Users can terminate guidance by `stopGuidance()`, canceling the task and resets all state.
 
 
 ### 2.5 Prompt Construction and Response Constraints
 
-The prompt is generated by `ConcisePromptTemplate.swift`. The template is fixed except for the user-goal line, which is inserted after sanitation. Newlines are removed, quotation marks are normalized, and the text is trimmed before inclusion. The prompt tells the model that it is guiding a blind user to grasp the requested drink and that it should reply with one short spoken command only.
+The prompt is generated by `ConcisePromptTemplate.swift`. Newlines are removed, quotation marks are normalized, and the text is trimmed before inclusion. The prompt tells the model that it is guiding a blind user to grasp the requested drink and that it should reply with one short spoken command only.
 
 ### 2.6 Remote Inference Client
 
 `RemoteVLMModel.swift` is the app-side networking layer, annotated with `@Observable` and `@MainActor` to keep UI state synchronized. It exposes properties such as `running`, `output`, and `promptTime` so the interface can reflect the current inference status.
 
-The `load()` method sends a `GET /health` request to verify server connectivity. The `generate()` method guards against overlapping calls via a `running` flag, converts the current `CVPixelBuffer` to JPEG through `CoreImage`, and submits a hand-built `multipart/form-data` request containing the prompt, `max_new_tokens`, and the image. The server response is decoded into an `InferJSONResponse` struct whose `text` field is stored in `output`. A start-to-finish timestamp is also recorded as `promptTime` for latency profiling.
+The `load()` method sends a `GET /health` request to ensure the server is connect. The `generate()` method guards against overlapping calls via a `running` flag, converts the current `CVPixelBuffer` to JPEG through `CoreImage`, and submits a hand-built `multipart/form-data` request containing the prompt, `max_new_tokens`, and the image. The server response is decoded into an `InferJSONResponse` struct whose `text` field is stored in `output`. A start-to-finish timestamp is also recorded as `promptTime` for latency profiling.
 
 ### 2.7 Audio Playback and Synchronization
 
-The final stage of the app-side pipeline is speech synthesis, implemented in `SpeechPlayer.swift`. This class wraps `AVSpeechSynthesizer` and exposes two important methods: `speak()` and `waitUntilDone()`. The `speak()` method stops any current utterance before starting a new one, preventing overlapping speech. The `waitUntilDone()` method bridges the speech synthesizer delegate callbacks into an async continuation, which allows the guidance loop to pause until playback is complete.
+The final stage of the app-side pipeline is speech synthesis, implemented in `SpeechPlayer.swift`. This class wraps `AVSpeechSynthesizer` and exposes two methods that are `speak()` and `waitUntilDone()`. The `speak()` method stops any current utterance before starting a new one, preventing overlapping speech. The `waitUntilDone()` method bridges the speech synthesizer delegate callbacks into an async continuation, which allows the guidance loop to pause until playback is complete.
 
 ## 3. Server Module
 
-The `server` module is the deployable inference layer of the project. It is responsible for keeping the trained model loaded in memory, exposing a simple HTTP API, and converting app-side requests into multimodal inference results. This module is implemented with FastAPI, and it is designed as a lightweight but structured service. In the overall system, the server is the bridge between the mobile client and the model produced by the training pipeline.
+The `server` module is the deployable inference layer of the project. It is responsible for keeping the trained model loaded in memory, exposing a simple HTTP API, and converting app-side requests into multimodal inference results. This module relies on FastAPI which is designed as a lightweight but structured service. In the overall system, the server is the bridge between the mobile client and the model produced by the training pipeline.
 
 ### 3.1 Service Interface and API Design
 
-The backend exposes two endpoints. `GET /health` returns a small JSON object indicating that the service is alive. This endpoint is intentionally simple because it is mainly used by the app during startup to verify basic connectivity. `POST /infer` is the main endpoint used during interaction. It accepts a `multipart/form-data` request with three fields:
+The backend exposes two endpoints. `GET /health` ensures the service is alive and response a small JSON object. This endpoint is intentionally simple because it is mainly used by the app during startup to verify basic connectivity. `POST /infer` is mainly utilized in interaction, and it accepts a `multipart/form-data` request with three fields:
 
 - `prompt`, which contains the text prompt constructed by the app,
 - `image`, which contains the current frame encoded as an image file,
@@ -64,7 +61,7 @@ The response is returned in JSON format with a cleaned `text` field and a `raw` 
 
 ### 3.2 Startup Path and Configuration
 
- Startup parameters include the base model path, LoRA adapter path, host, port, and an optional device override. Internally, the entry point parses command-line arguments, normalizes local paths to absolute paths, places the final values into environment variables, and then starts the FastAPI app. One useful implementation detail is `_normalize_model_path()`. This helper keeps Hugging Face model identifiers unchanged but converts local model directories into absolute paths. This avoids failures caused by changing the current working directory when launching the service. Since model loading can already be fragile, reducing path-related ambiguity is valuable in practice.
+ Startup parameters include the base model path, LoRA adapter path, host, port, and an optional device override. The entry point parses the command line parameters, normalizes the local path into an absolute path, puts the final value into the environment variable, and then starts the FastAPI application. One useful implementation detail is `_normalize_model_path()`. This helper keeps Hugging Face model identifiers unchanged but converts local model directories into absolute paths. This avoids failures caused by changing the current working directory when launching the service. Since model loading can already be fragile, reducing path-related ambiguity is valuable in practice.
 
 ### 3.3 Model Lifecycle Management
 
