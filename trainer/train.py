@@ -1,7 +1,7 @@
 """LoRA fine-tuning for SmolVLM (e.g. SmolVLM-256M-Instruct).
 
 Expects dataset layout under --data_dir:
-  <stem>.<image_ext>              e.g. IMG_6841__cola__v01.jpg
+  <stem>.<image_ext>              e.g. IMG_6841__sprite__v01.jpg
   <stem>.ans.txt                  assistant answer (plain text)
 
 For ``--prompt-variant concise`` (default), user prompts are generated on the
@@ -83,7 +83,7 @@ def load_samples(data_dir: str, prompt_variant: str = "concise") -> list[dict[st
             drink_key = parse_drink_key_from_stem(stem)
             if drink_key is None:
                 raise ValueError(
-                    f"Stem {stem!r} does not match __<drink>__vNN pattern; "
+                    f"Stem {stem!r} does not match __sprite__vNN pattern; "
                     "cannot determine drink class for concise prompt."
                 )
             sample["drink_key"] = drink_key
@@ -271,9 +271,10 @@ def main() -> None:
                 full_msgs, add_generation_prompt=False
             )
             inp_p = processor(
-                text=text_prompt.strip(),
-                images=[img],
+                text=[text_prompt.strip()],
+                images=[[img]],
                 return_tensors="pt",
+                padding=True,
             )
             pl = int(inp_p["input_ids"].shape[1])
             prompt_lens.append(pl)

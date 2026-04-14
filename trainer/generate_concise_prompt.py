@@ -1,7 +1,7 @@
 """Write concise training prompts for dataset stems that encode a drink class.
 
 Scans a folder for images; for each ``<stem>.jpg`` (or similar), if the stem
-matches ``...__<sprite|cola|lemon_tea>__vNN``, builds a short prompt from
+matches ``...__sprite__vNN``, builds a short prompt from
 ``concise_prompt_vocab`` and writes a text file next to the image.
 
 Default output: ``<stem>.prompt.concise.txt``. Use ``--replace-main`` to
@@ -88,7 +88,7 @@ def main() -> None:
         if built is None:
             skipped += 1
             if args.dry_run:
-                print(f"[skip] {stem} (no __<drink>__vNN pattern)")
+                print(f"[skip] {stem} (no __sprite__vNN pattern)")
             continue
         drink_key, body = built
         out_path = os.path.join(data_dir, f"{stem}{suffix}")

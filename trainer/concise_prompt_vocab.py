@@ -1,8 +1,8 @@
-"""Vocabulary for concise user-goal prompts: pickup phrasings and drink aliases.
+"""Vocabulary for concise user-goal prompts: pickup phrasings and Sprite aliases.
 
-Templates use a single ``{name}`` placeholder filled from per-class alias lists.
-Stem convention (e.g. ``IMG_7006__lemon_tea__v01``): middle segment is the
-canonical drink key in ``DRINK_NAME_ALIASES``.
+Templates use a single ``{name}`` placeholder filled from alias lists.
+Stem convention (e.g. ``IMG_7006__sprite__v01``): middle segment is the
+canonical drink key (``sprite`` only in this project).
 """
 
 from __future__ import annotations
@@ -13,10 +13,10 @@ import random
 import re
 from typing import Final
 
-# Canonical keys embedded in dataset stems: ``<base>__<key>__vNN``.
-KNOWN_DRINK_KEYS: Final[tuple[str, ...]] = ("sprite", "cola", "lemon_tea")
+# Canonical key embedded in dataset stems: ``<base>__sprite__vNN`` only.
+KNOWN_DRINK_KEYS: Final[tuple[str, ...]] = ("sprite",)
 
-# Multiple natural names per class (lowercase phrases work inside sentences).
+# Natural names for Sprite (lowercase phrases work inside sentences).
 DRINK_NAME_ALIASES: dict[str, tuple[str, ...]] = {
     "sprite": (
         "Sprite",
@@ -33,40 +33,6 @@ DRINK_NAME_ALIASES: dict[str, tuple[str, ...]] = {
         "chilled Sprite",
         "cold Sprite",
         "the Sprite can",
-    ),
-    "cola": (
-        "cola",
-        "Cola drink",
-        "a cola",
-        "the cola",
-        "dark cola",
-        "cola soda",
-        "that cola bottle",
-        "the red-label cola",
-        "the cola can",
-        "caramel cola",
-        "iced cola",
-        "cold cola",
-        "the dark soda",
-        "cola soft drink",
-    ),
-    "lemon_tea": (
-        "lemon tea",
-        "lemon tea drink",
-        "iced lemon tea",
-        "bottled lemon tea",
-        "lemon iced tea",
-        "citrus tea",
-        "tea with lemon",
-        "the lemon tea bottle",
-        "yellow lemon tea",
-        "that lemon tea",
-        "lemon flavor tea",
-        "cold lemon tea",
-        "the tea drink",
-        "sweet lemon tea",
-        "Asian lemon tea",
-        "lemon tea beverage",
     ),
 }
 
@@ -181,7 +147,7 @@ def build_random_user_goal_line(drink_key: str, rng: random.Random | None = None
     """Randomly sampled one-line user goal for a given drink class.
 
     Args:
-        drink_key: Canonical drink key (e.g. ``"cola"``).
+        drink_key: Canonical drink key (``"sprite"`` only).
         rng: Optional ``random.Random`` instance for reproducibility.
              Falls back to the module-level ``random`` if *None*.
     """

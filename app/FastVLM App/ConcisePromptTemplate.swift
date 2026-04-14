@@ -1,5 +1,5 @@
 //
-// Matches trainer/cola_prompt_example.txt: only the quoted user-goal line changes.
+// Matches trainer/sprite_prompt_example.txt: only the quoted user-goal line changes.
 //
 
 import Foundation

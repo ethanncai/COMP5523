@@ -1,6 +1,6 @@
 """Benchmark repeated VLM inference latency (same as ``infer.py``, timed).
 
-Defaults match ``memo.txt``: LoRA under ``smolvlm-lora-out``, cola image + prompt.
+Defaults match ``memo.txt``: LoRA under ``smolvlm-lora-out``, Sprite image + prompt.
 
 Run from anywhere::
 
@@ -88,14 +88,14 @@ def main() -> None:
     parser.add_argument(
         "--image",
         type=str,
-        default=os.path.join(_root, "dataset", "IMG_7007__cola__v01.jpg"),
-        help="Input image (default: memo dataset/IMG_7007__cola__v01.jpg)",
+        default=os.path.join(_root, "unseens", "sprite-gt-left.png"),
+        help="Input image (default: trainer/unseens/sprite-gt-left.png)",
     )
     parser.add_argument(
         "--prompt_file",
         type=str,
-        default=os.path.join(_root, "cola_prompt_example.txt"),
-        help="Prompt text file (default: trainer/cola_prompt_example.txt)",
+        default=os.path.join(_root, "sprite_prompt_example.txt"),
+        help="Prompt text file (default: trainer/sprite_prompt_example.txt)",
     )
     parser.add_argument(
         "--repeats",

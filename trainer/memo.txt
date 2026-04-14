@@ -1,11 +1,13 @@
 python infer.py \
   --adapter_path ./smolvlm-lora-out \
-  --image ./dataset/IMG_7007__cola__v01.jpg \
-  --prompt_file ./cola_prompt_example.txt
-
-  python infer.py \
-  --adapter_path ./smolvlm-lora-out \
-  --image /Users/junzhicai/smol/trainer/sample-photo/sprite-gt-left.png \
+  --image ./unseens/sprite-gt-left.png \
   --prompt_file ./sprite_prompt_example.txt
 
 python train.py --data_dir ./dataset --output_dir ./smolvlm-lora-out --epochs 5 --batch_size 1
+
+
+python -m server.main \
+  --model-path HuggingFaceTB/SmolVLM-256M-Instruct \
+  --adapter-path ./trainer/smolvlm-lora-out \
+  --host 0.0.0.0 \
+  --port 8000

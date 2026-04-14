@@ -94,7 +94,7 @@ def infer_one(
             ],
         }
     ]
-    text = processor.apply_chat_template(messages, add_generation_prompt=True)
+    text = processor.apply_chat_template(messages, add_generation_prompt=True).strip()
     batch = processor(
         text=[text],
         images=[[image]],

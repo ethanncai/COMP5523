@@ -15,7 +15,7 @@ Environment:
 Usage:
   python generate_dataset_siliconflow.py --dry-run
   python generate_dataset_siliconflow.py [--variants-per-class N]
-  (Each image: N variants per drink class * 3 classes; default N=1 -> 3 samples/image.)
+  (Sprite only: N samples per image; default N=1.)
   Skips samples when {stem}.ans.txt already exists with non-empty text (use --overwrite).
 """
 
@@ -58,35 +58,18 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".heic", ".heif"}
 _MAX_SIDE_FOR_API = 2048
 _JPEG_QUALITY_API = 92
 
-# Multiple user-goal phrasings per drink (robustness).
+# User-goal phrasings for Sprite only.
 USER_GOAL_VARIANTS: dict[str, list[str]] = {
     "sprite": [
-        'I want to pick up Sprite drink.',
+        "I want to pick up Sprite drink.",
         "Please help me grab the Sprite bottle.",
         "Get me the Sprite, I'm trying to reach it.",
         "I need to take the Sprite from the table.",
         "Could you guide me to the Sprite?",
         "I'm blind—help me get the Sprite drink.",
     ],
-    "cola": [
-        "I want to pick up Cola drink.",
-        "Please help me grab the cola (bottle or can).",
-        "Get me the cola—I want to hold it.",
-        "I need to take the cola drink in front of me.",
-        "Guide my hand to the cola.",
-        "I'm blind—help me reach the cola.",
-    ],
-    "lemon_tea": [
-        "I want to pick up lemon tea drink.",
-        "Please help me grab the lemon tea bottle.",
-        "Get me the lemon tea, I can't see it.",
-        "I need to take the lemon tea from the scene.",
-        "Could you guide me to the lemon tea?",
-        "I'm blind—help me get the lemon tea drink.",
-    ],
 }
 
-# Number of drink classes (sprite / cola / lemon_tea).
 NUM_DRINK_CLASSES = len(USER_GOAL_VARIANTS)
 
 
@@ -96,12 +79,9 @@ def build_instruction_prompt(user_goal: str) -> str:
 
 User goal: "{user_goal}"
 
-Visual reference — match the user goal to the correct bottle/can by typical packaging color (use this to disambiguate when several drinks appear):
-- Sprite drink: green packaging (green bottle/label).
-- Lemon tea drink: yellow packaging (yellow bottle/label).
-- Cola drink: red packaging (red bottle/can or red-dominant label).
+Visual reference — the user only asks for Sprite. Identify Sprite by **green** packaging (green bottle or green-dominant label). When several drinks appear, guide toward the green Sprite only.
 
-Always guide toward the drink that matches BOTH the user goal AND this packaging cue.
+Always guide toward the drink that matches BOTH the user goal (Sprite) AND this packaging cue.
 
 Honesty (critical):
 - If the target drink is NOT clearly visible in the image, output ONLY: object missing. Do NOT invent move left/right/forward commands or pretend the drink is there.
@@ -114,14 +94,12 @@ Frame of reference (critical — hand-centric, not object-centric):
 - **Do not** phrase guidance as position of the drink **relative to unrelated items** (other bottles, edges, image center). **Do not** confuse camera / frame / scene axes with "which way the hand should go" unless they match the user's egocentric hand movement.
 - Infer the needed hand motion from **hand vs. target drink** only: where the hand must go next, in **forward/back, up/down, left/right** from the hand's current location, to align with the correct drink.
 
-Directions — consider **depth**, **vertical**, and **horizontal** separately (always as **hand** motion toward the target). **Do not default to left/right** when depth or height is clearly wrong.
+Directions — consider depth, vertical, and horizontal as **hand** motion toward the target. **Do not default to left/right** when depth or height is clearly wrong.
 
-Multi-axis output (critical):
-- In **one** line, output **every** direction that still needs a **meaningful** correction: include depth (forward/back/closer), vertical (up/down), and horizontal (left/right) **as needed**.
-- **Omit an axis** if the error on that axis is **too subtle** (barely visible, negligible, or would only be a micro-nudge). Do not mention that direction for this turn.
-- Order parts consistently when combining: **depth first**, then **vertical**, then **horizontal** (e.g. `move forward and move up`, or `move back and move right`). Join with **and** (or a comma if very short).
-- If only **one** axis needs a non-subtle fix, output that single move phrase (same as before).
-- Still avoid left/right **only** when depth or vertical errors are clearly larger — but if several axes are all clearly off, say **all** of them in that one line.
+Single move only (critical):
+- Output **exactly one** move phrase per line — never combine directions (no `move forward and move right`, no comma lists of moves).
+- If several axes are off, choose **one** correction for this turn: pick the axis with the **largest** clear error (depth vs vertical vs horizontal). The next turn can address another axis after the user moves.
+- Optional: add "a little bit" / "slightly" to that single phrase if the correction is small.
 
 Vocabulary (short fragments; optional "a little bit" / "slightly" on any part):
 - Depth: move forward, move back, move closer
@@ -132,12 +110,12 @@ Grab rule (critical):
 - Output grab now or hold it now ONLY when the hand and the target drink appear **fully aligned / overlapping** in the image (contact-ready, same spot — not merely "close"). If alignment is incomplete, keep giving directional fixes; do NOT grab early.
 
 Rules:
-1. Output **one line** per turn, no paragraphs or bullet lists. It may be **one** move phrase **or** several joined with **and** when multiple axes need non-subtle fixes (see "Multi-axis output"). Typical length about 2–12 words. No explanations.
-2. Allowed tokens: move forward, move back, move closer, move up, move down, move left, move right, grab now, hold it now, show your hand, object missing, done — plus optional "a little bit" / "slightly" on relevant parts.
+1. Output **one line** per turn, no paragraphs or bullet lists. For movement guidance, **one** move phrase only (see "Single move only"). Typical length about 2–8 words. No explanations.
+2. Allowed tokens: move forward, move back, move closer, move up, move down, move left, move right, grab now, hold it now, show your hand, object missing, done — plus optional "a little bit" / "slightly" on that single move.
 3. If the user's hand is not visible, output: show your hand
 4. If the target drink for this user goal is not visible (including wrong color/packaging for that drink), output: object missing
 5. When (and only when) the hand and the correct drink are fully overlapped / contact-ready per "Grab rule", output: grab now or hold it now (pick one consistently) — **never** combine grab with move commands on the same line.
-6. Directional fixes only when "Honesty" allows and alignment is not yet full. List every **non-subtle** axis; skip axes that are too fine to matter this turn. Every move phrase must be **hand-centric** (how to move the **hand** from its current position toward the target), never a description of where something else is relative to a third object.
+6. Directional fixes only when "Honesty" allows and alignment is not yet full. Every move line is **hand-centric** (one axis per line). Never stack multiple move directions in one line.
 7. When the user has clearly completed the grasp after grab (hand holding the drink), output exactly: done
 8. Do NOT describe the whole scene in detail. Do NOT add safety lectures. Only output the command line (or done).
 
@@ -247,7 +225,7 @@ def normalize_answer(text: str) -> str:
 
 
 def total_samples_per_image(variants_per_class: int) -> int:
-    """Each image generates at most variants_per_class * NUM_DRINK_CLASSES samples."""
+    """Each image generates at most ``variants_per_class`` samples (Sprite class only)."""
     return variants_per_class * NUM_DRINK_CLASSES
 
 
@@ -469,8 +447,8 @@ def main() -> None:
         default=1,
         metavar="N",
         help=(
-            "Max user-goal variants per drink class (default: 1). "
-            f"Classes={NUM_DRINK_CLASSES}, so each image yields at most N * {NUM_DRINK_CLASSES} API calls."
+            "Max user-goal variants for Sprite per image (default: 1). "
+            "Each image yields at most N API calls."
         ),
     )
     args = parser.parse_args()
