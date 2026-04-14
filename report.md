@@ -62,24 +62,12 @@ This design has several advantages. First of all, it avoids the extremely high c
 
 The `/infer` endpoint validates the `max_new_tokens` range, reads and decodes the uploaded image to RGB via Pillow, retrieves the preloaded model and processor from `_state`, runs the shared inference function, and returns a JSON response containing both a cleaned `text` field and a `raw` field. Failures are mapped to explicit HTTP status codes (`400` for bad input, `503` for missing model state, `500` for runtime errors), allowing the client to distinguish between different error categories.
 
-### 3.5 Shared Inference Logic with the Trainer Module
-
-Rather than duplicating model logic, the server reuses shared functions from `trainer/infer.py`, including `pick_device()` / `pick_dtype()` for hardware selection, `load_model_and_processor()` for loading the base model with an optional LoRA adapter, and `infer_one()` for running a single image-plus-prompt inference pass. `infer_one()` formats the input as a chat-style message, applies the processor's template, runs `model.generate()`, and returns the decoded result after `extract_assistant()` strips away the prompt scaffolding. Sharing this code path between offline evaluation and the deployed server ensures consistent preprocessing and prompt formatting.
-
-The current server will return the complete JSON response only after the generation is completed. It does not stream some tokens. This is a deliberate design choice. The implementation of the streaming media interface on the server and application side will be more complicated, especially because the application is designed to say complete short commands, not some text fragments. In the current task settings, a single compact response is simpler, more reliable, and easier to integrate with the client's serial boot loop.
-
-
 ## 4. Trainer Module
 
-### 4.1 Data Preprocessing and Dataset Construction
+### 4.1 Dataset Construction
 
-The training dataset is constructed from raw images collected during the beverage-grabbing task. Since the original data may use different image formats, the preprocessing stage first standardises them before labeling and training.
+We generate dataset automatically rather than labeled fully by hand. A multimodal teacher model(Qwen3VL) is used to examine each image and produce short command-style supervision for the target beverage classes, including `sprite`, `cola`, and `lemon_tea`.
 
-In the current pipeline, supported formats such as PNG, WebP, BMP, TIFF, HEIC, and HEIF are converted into `.jpg`. Files with the `.jpeg` suffix are renamed to `.jpg` directly. During this process, images are converted to RGB and saved as JPEG with a fixed quality setting.
-
-After preprocessing, the dataset is generated automatically rather than labeled fully by hand. A multimodal teacher model is used to examine each image and produce short command-style supervision for the target beverage classes, including `sprite`, `cola`, and `lemon_tea`.
-
-Each sample is stored with a structured stem of the form `<base>__<drink_key>__vNN`. A typical sample contains an image file, a prompt file, and an answer file, such as `<stem>.jpg`, `<stem>.prompt.txt`, and `<stem>.ans.txt`. Intermediate reasoning text may also be saved, but the final training stage mainly uses the answer file. Because the class information is encoded in the file name, the later training pipeline can recover the target category directly.
 
 ### 4.2 Prompt Design
 
@@ -103,12 +91,6 @@ For adaptation, the training pipeline uses **LoRA** instead of full-parameter fi
 
 During training, each sample is treated as a paired image–instruction example. The model receives an image together with a user request and is trained to generate a short guidance command as the answer.
 
-The training pipeline supports two prompt modes. In the default concise mode, the drink class is parsed directly from the sample stem and the prompt is generated during training. In the full mode, the prompt is read from the stored prompt file. This allows the same dataset to support both stored prompts and dynamically generated prompts.
-
-During batch construction, each sample is organised as a short dialogue. The user side contains the image token and the text prompt, while the assistant side contains the expected answer. These messages are then converted into the chat-style input required by SmolVLM.
-
-The loss is applied only to the assistant response. Tokens from the user prompt are masked out during loss computation, and padding tokens and the image token are excluded as well. As a result, the model is trained to generate the target command itself rather than repeat the prompt.
-
 ![Figure 4.2. Teacher–student training idea used in the project.](figure4.2.png)
 
 *Figure 4.2. Teacher–student training idea used in the project.*
@@ -119,30 +101,11 @@ Training is implemented with the Hugging Face `Trainer` pipeline. The script set
 
 After training, the LoRA adapter and the corresponding processor are saved for later inference. This keeps the training and deployment settings consistent.
 
-![Figure 4.3. LoRA training result and loss curve.](figure4.3.png)
-
-*Figure 4.3. LoRA training result and loss curve.*
-
-### 4.6 Inference Testing and Performance Evaluation
-
-The table below is reserved for future evaluation results.
-
-| Test Item | Description | Value |
-|-----------|-------------|-------|
-| Model | Fine-tuned SmolVLM-256M | TBD |
-| Task | Beverage grasping guidance | TBD |
-| Average latency (ms) | Mean inference time over repeated runs | TBD |
-| Minimum latency (ms) | Best-case inference time | TBD |
-| Maximum latency (ms) | Worst-case inference time | TBD |
-| Std. deviation (ms) | Latency variation across runs | TBD |
-| Number of runs | Total benchmark repetitions | TBD |
-| Hardware | Testing device / platform | TBD |
-
-### 4.7 Summary
+### 4.6 Summary
 
 The trainer module covers dataset preparation, prompt construction, and model fine-tuning for the beverage-grabbing task. It connects raw image data, automatically generated supervision, and the final model used by the later inference system.
 
-## 5. Evaluation
+## 4.7 Evaluation
 To provide a simple reference for system behavior, we summarize several mock grasping trials for three target drinks below. The table records example grasping times, average grasp success rates, and average grasp duration across repeated runs.
 
 | Beverage | Grasping Time Record (s) | Average Grasp Success Rate | Average Grasp Time (s) |
