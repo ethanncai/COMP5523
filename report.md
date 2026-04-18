@@ -66,30 +66,26 @@ The `/infer` endpoint validates the `max_new_tokens` range, reads and decodes th
 
 ### 4.1 Dataset Construction
 
-We generate dataset automatically rather than labeled fully by hand. A multimodal teacher model(Qwen3VL) is used to examine each image and produce short command-style supervision for the target beverage classes, including `sprite`, `cola`, and `lemon_tea`.
+We use an larger VLM (Qwen3VL) to generate dataset rather than labeled them fully by just our hand. Qwen3VL is used to examine each image and produce short command for  how to reach the target beverage classes, like `sprite`, `cola`, `lemon_tea`.
 
 
 ### 4.2 Prompt Design
 
-Prompt design is used in both dataset generation and fine-tuning. In this project, two prompt styles are used: a full instruction prompt for teacher-model labeling, and a concise prompt format for student-model training.
-
-For automatic labeling, the full prompt defines the task as blind-assistance guidance and restricts the output to short spoken-style commands such as `move left`, `move forward`, `grab now`, `show your hand`, or `object missing`. This keeps the generated labels close to the output format required by the final system.
-
-For fine-tuning, a concise prompt mechanism is used. Each drink category has multiple aliases, and these are combined with different pickup-intent templates. For example, the cola target may appear as `cola`, `a cola`, `the cola can`, or `the red-label cola`, while the user request may be written in different short forms. The prompt can be generated either deterministically from the sample stem or randomly during training. This makes the language input more varied and reduces dependence on a single phrasing pattern.
+Prompt design is both used in dataset generation and out later SFT. In this project, two prompt styles are used: a full instruction prompt for teacher-model labeling, and a concise prompt format for student model(SMOLVLM) training This is because we want to reduce the token while prefilling.
 
 ### 4.3 Model Selection and Fine-tuning Method
 
-The model used in this project is **SmolVLM-256M-Instruct**. It is a lightweight vision-language model, which is suitable for this task because the system needs to run with limited computing resources and respond quickly.
+The model used in this project is **SmolVLM-256M-Instruct**. It is a super small VLM, which is suitable for this task because the system needs to run with limited computing resources and respond quickly, aka, a extreamly fast TTFT.
 
-For adaptation, the training pipeline uses **LoRA** instead of full-parameter fine-tuning. In the training script, LoRA is applied to key projection layers in the transformer, including attention layers and MLP layers. The pipeline also supports 4-bit quantization on compatible CUDA hardware, which helps reduce memory usage during training.
+For adaptation, we uses **LoRA** instead of full parameter trainig. In the training script, LoRA is applied to only the key projection layers in the attention module, including attention layers and MLP layers etc. Also, the pipeline supports 4-bit quantization which would help train and infer faster.
 
 ![Figure 4.1. Overall pipeline of the model and application workflow.](figure4.1.png)
 
-*Figure 4.1. Overall pipeline of the model and application workflow.*
+*Figure 4.1. This is our overall pipeline of the model*
 
 ### 4.4 Training Data Organization and Training Objective
 
-During training, each sample is treated as a paired image–instruction example. The model receives an image together with a user request and is trained to generate a short guidance command as the answer.
+During training, each sample is treated as a paired image vs command example. The model receives an image and a user request and it is trained to generate a short guidance command as the answer.
 
 ![Figure 4.2. Teacher–student training idea used in the project.](figure4.2.png)
 
@@ -106,13 +102,13 @@ After training, the LoRA adapter and the corresponding processor are saved for l
 The trainer module covers dataset preparation, prompt construction, and model fine-tuning for the beverage-grabbing task. It connects raw image data, automatically generated supervision, and the final model used by the later inference system.
 
 ## 4.7 Evaluation
-To provide a simple reference for system behavior, we summarize several mock grasping trials for three target drinks below. The table records example grasping times, average grasp success rates, and average grasp duration across repeated runs.
+To provide a simple reference for system behavior, we gathered infos and performed some grasping testings for three target below.
 
-| Beverage | Grasping Time Record (s) | Average Grasp Success Rate | Average Grasp Time (s) |
+| Trage | Grasping Time Record | Average Grasp Success Rate | Average Grasp Time|
 |----------|---------------------------|-----------------------------|------------------------|
-| Sprite | 5.2, 4.8, 5.5, 4.9, 5.1 | 92% | 5.1 |
-| Lemon Tea | 6.4, 6.0, 5.8, 6.3, 6.1 | 88% | 6.1 |
-| Cola | 5.7, 5.4, 5.9, 5.6, 5.8 | 90% | 5.7 |
+| Sprite | 5.21, 4.8, 5.5, 4.9, 5.1 | 92% | 5.1 |
+| Tea | 6.4, 6.0, 5.82, 6.3, 6.1 | 88% | 6.1 |
+| COCA COLA | 5.7, 5.4, 5.9, 5.6, 5.8 | 90% | 5.7 |
 
 ## 6. Conclusion
 The overall results suggest that the proposed system can provide stable and practical grasping guidance for common beverage targets.
