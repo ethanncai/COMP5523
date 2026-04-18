@@ -60,7 +60,7 @@ This design has several advantages. First of all, it avoids the extremely high c
 
 ### 3.4 Request Handling Flow
 
-The `/infer` endpoint validates the `max_new_tokens` range, reads and decodes the uploaded image to RGB via Pillow, retrieves the preloaded model and processor from `_state`, runs the shared inference function, and returns a JSON response containing both a cleaned `text` field and a `raw` field. Failures are mapped to explicit HTTP status codes (`400` for bad input, `503` for missing model state, `500` for runtime errors), allowing the client to distinguish between different error categories.
+The `/infer` endpoint validates the `max_new_tokens` range, reads and decodes the uploaded image to RGB via Pillow, retrieves the preloaded model and processor from `_state`, runs the shared inference function, and returns a JSON response containing both a cleaned `text` field and a `raw` field. The client can distinguish errors according to different status codes which facilitates fixing issues.
 
 ## 4. Trainer Module
 
