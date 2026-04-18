@@ -75,9 +75,9 @@ Prompt design is both used in dataset generation and out later SFT. In this proj
 
 ### 4.3 Model Selection and Fine-tuning Method
 
-The model used in this project is **SmolVLM-256M-Instruct**. It is a super small VLM, which is suitable for this task because the system needs to run with limited computing resources and respond quickly, aka, a extreamly fast TTFT.
+The main infer model used in this project was **SmolVLM-256M-Instruct** from Huggingface. It is a super small VLM, which is suitable for this task because the system needs to run with limited computing resources and respond quickly, aka, a extreamly fast TTFT.
 
-For adaptation, we uses **LoRA** instead of full parameter trainig. In the training script, LoRA is applied to only the key projection layers in the attention module, including attention layers and MLP layers etc. Also, the pipeline supports 4-bit quantization which would help train and infer faster.
+For adaptation, we uses LoRA implementation instead of full parameter trainig. In the training script, LoRA is applied to only the key projection layers in the attention module, including attention layers and MLP layers etc. Also, the pipeline supports 4-bit quantization which would help train and infer faster.
 
 ![Figure 4.1. Overall pipeline of the model and application workflow.](figure4.1.png)
 
@@ -91,17 +91,11 @@ During training, each sample is treated as a paired image vs command example. Th
 
 *Figure 4.2. Teacher–student training idea used in the project.*
 
-### 4.5 Training Workflow and Implementation Details
-
-Training is implemented with the Hugging Face `Trainer` pipeline. The script sets the main training arguments, including batch size, learning rate, gradient accumulation, and checkpoint saving. To reduce memory usage, the training process supports gradient checkpointing, and TensorBoard is used for logging.
-
-After training, the LoRA adapter and the corresponding processor are saved for later inference. This keeps the training and deployment settings consistent.
-
-### 4.6 Summary
+### 4.5 Summary
 
 The trainer module covers dataset preparation, prompt construction, and model fine-tuning for the beverage-grabbing task. It connects raw image data, automatically generated supervision, and the final model used by the later inference system.
 
-## 4.7 Evaluation
+## 4.6 Evaluation
 To provide a simple reference for system behavior, we gathered infos and performed some grasping testings for three target below.
 
 | Trage | Grasping Time Record | Average Grasp Success Rate | Average Grasp Time|
@@ -110,5 +104,5 @@ To provide a simple reference for system behavior, we gathered infos and perform
 | Tea | 6.4, 6.0, 5.82, 6.3, 6.1 | 88% | 6.1 |
 | COCA COLA | 5.7, 5.4, 5.9, 5.6, 5.8 | 90% | 5.7 |
 
-## 6. Conclusion
+## 5. Conclusion
 The overall results suggest that the proposed system can provide stable and practical grasping guidance for common beverage targets.
