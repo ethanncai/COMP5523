@@ -87,6 +87,10 @@ During training, each sample is treated as a paired image vs command example. Th
 
 *Figure 4.2. Teacher–student training idea used in the project.*
 
+Below is the converge line of our train course, it is fast because of the concise enough trainable target( LoRA adapter）
+
+![Figure 4.2. Teacher–student training idea used in the project.](figure4.3.png)
+
 ### 4.5 Summary
 
 The trainer module covers dataset preparation, prompt construction, and model fine-tuning for the beverage-grabbing task. It connects raw image data, automatically generated supervision, and the final model used by the later inference system.
