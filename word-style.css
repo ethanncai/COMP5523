@@ -1,0 +1,201 @@
+/* Word-like style for Markdown Preview Enhanced (Prince PDF) */
+
+@page {
+  size: A4;
+  margin: 2.54cm 3.18cm 2.54cm 3.18cm; /* Word default margins */
+
+  @bottom-center {
+    content: counter(page);
+    font-family: "Times New Roman", Times, serif;
+    font-size: 10pt;
+    color: #333;
+  }
+}
+
+/* Base body */
+body {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 12pt;
+  line-height: 1.5;
+  color: #000;
+  text-align: justify;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Headings - Word style */
+h1 {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 22pt;
+  font-weight: bold;
+  color: #000;
+  text-align: center;
+  margin-top: 0;
+  margin-bottom: 12pt;
+  padding-bottom: 6pt;
+  border-bottom: 2px solid #333;
+  page-break-after: avoid;
+}
+
+h2 {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 16pt;
+  font-weight: bold;
+  color: #000;
+  margin-top: 18pt;
+  margin-bottom: 6pt;
+  padding-bottom: 4pt;
+  border-bottom: 1px solid #999;
+  page-break-after: avoid;
+}
+
+h3 {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 14pt;
+  font-weight: bold;
+  color: #000;
+  margin-top: 14pt;
+  margin-bottom: 4pt;
+  page-break-after: avoid;
+}
+
+h4 {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 12pt;
+  font-weight: bold;
+  color: #000;
+  margin-top: 12pt;
+  margin-bottom: 4pt;
+  page-break-after: avoid;
+}
+
+/* Paragraphs */
+p {
+  margin-top: 0;
+  margin-bottom: 6pt;
+  text-indent: 0;
+  orphans: 2;
+  widows: 2;
+}
+
+/* Links */
+a {
+  color: #0563C1; /* Word default hyperlink color */
+  text-decoration: underline;
+}
+
+/* Lists */
+ul, ol {
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding-left: 36pt;
+}
+
+li {
+  margin-bottom: 3pt;
+}
+
+/* Table - Word style */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12pt;
+  margin-bottom: 12pt;
+  font-size: 11pt;
+  page-break-inside: avoid;
+}
+
+th {
+  background-color: #4472C4; /* Word default table header blue */
+  color: #fff;
+  font-weight: bold;
+  padding: 6pt 8pt;
+  border: 1px solid #4472C4;
+  text-align: center;
+}
+
+td {
+  padding: 5pt 8pt;
+  border: 1px solid #BDC3CB;
+  text-align: center;
+}
+
+tr:nth-child(even) {
+  background-color: #D9E2F3; /* Word alternating row color */
+}
+
+tr:nth-child(odd) {
+  background-color: #fff;
+}
+
+/* Code */
+code {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 10pt;
+  background-color: #F2F2F2;
+  padding: 1pt 4pt;
+  border: 1px solid #E0E0E0;
+  border-radius: 2pt;
+}
+
+pre {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 10pt;
+  background-color: #F8F8F8;
+  border: 1px solid #D0D0D0;
+  padding: 10pt;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  page-break-inside: avoid;
+}
+
+pre code {
+  background-color: transparent;
+  border: none;
+  padding: 0;
+}
+
+/* Images */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 12pt auto;
+  page-break-inside: avoid;
+}
+
+/* Figure captions (italic text after images) */
+p > em:only-child {
+  display: block;
+  text-align: center;
+  font-size: 10pt;
+  color: #555;
+  margin-top: -6pt;
+  margin-bottom: 12pt;
+}
+
+/* Blockquote */
+blockquote {
+  margin: 10pt 0;
+  padding: 6pt 12pt;
+  border-left: 4pt solid #4472C4;
+  background-color: #F2F6FC;
+  font-style: italic;
+  color: #333;
+}
+
+/* Horizontal rule */
+hr {
+  border: none;
+  border-top: 1px solid #999;
+  margin: 18pt 0;
+}
+
+/* Strong / Bold */
+strong {
+  font-weight: bold;
+}
