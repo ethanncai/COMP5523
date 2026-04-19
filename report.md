@@ -3,7 +3,7 @@
 
 ## 1. Project Overview
 
-This project is an assistive vision-language system designed to help a visually impaired user locate and grasp a target drink, which connects real-time camera input, speech interaction, vision-language inference, and spoken feedback. The system utilizes Apple STT and Apple TTS to translate fluently between text and speech which enables smooth interaction. A user who says the object they want to pick up, such as a bottle of cola or Sprite. The client application captures the latest camera frame and sends it together with a concise task prompt to the backend server. The server runs the fine-tuned model and returns a short action-oriented instruction, such as "move left", "move forward", or "grab now". The application then reads this instruction aloud and continues the process in a loop until the user stops the guidance session.
+This project is used for helping the blind people to locate and grasp something (Our project mainly focus on baverages), this system contains TTS,STT,VLM and more. The app was designed to let the blind user using their voice to interact, and give fast and informative feedback on its target. A user  says the object they want to pick up, such as cola or Sprite. The app take the latest frame and sends it to the backend server(Running an VLM). And finally the server returned some simple but informative instruction, such as "move left", "move forward", or "grab now". The application will reads this instruction aloud using TTS and continues the process loop until the user get what they want.
 
 ## 2. App Module
 
