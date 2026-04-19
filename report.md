@@ -27,7 +27,7 @@ Captured frames flow through `AsyncStream<CMSampleBuffer>` → `AsyncStream<CVIm
 
 ### 2.4 Continuous Guidance Loop
 
-The core runtime behavior is the continuous guidance loop in `startGuidanceLoop()`. After the user speaks a command, the app repeatedly reads the latest frame, constructs a prompt, calls remote inference, speaks the returned instruction aloud, and waits until playback finishes before starting the next iteration. Users can terminate guidance by `stopGuidance()`, canceling the task and resets all state.
+The core runtime behavior is the continuous guidance loop in `startGuidanceLoop()`. After the user speaks a command, the app repeatedly reads the latest frame, constructs a prompt, calls remote inference, speaks the returned instruction aloud, and waits until playback finishes before starting the next iteration. Users can terminate process by `stopGuidance()` that means  the task is canceled and all states are reset.
 
 
 ### 2.5 Prompt Construction and Response Constraints
@@ -40,21 +40,17 @@ The `server` module is the deployable inference layer of the project. It is resp
 
 ### 3.1 Service Interface and API Design
 
-The backend exposes two endpoints. `GET /health` ensures the service is alive and response a small JSON object. This endpoint is intentionally simple because it is mainly used by the app during startup to verify basic connectivity. `POST /infer` is mainly utilized in interaction, and it accepts a `multipart/form-data` request with three fields:
-
-- `prompt`, which contains the text prompt constructed by the app,
-- `image`, which contains the current frame encoded as an image file,
-- `max_new_tokens`, which controls the maximum length of generation.
+The backend exposes two endpoints. `GET /health` ensures the service is alive and response with a small JSON object. This endpoint is designed to be relatively simple, because it is mainly used when the application starts to verify the basic connectivity. `POST /infer` is mainly utilized in interaction, and it accepts a `multipart/form-data` request with three fields that are `prompt`, `image` and `max_new_tokens`.
 
 The response is returned in JSON format with a cleaned `text` field and a `raw` field which contains the full decoded generation. The app normally uses only the cleaned text, but the raw output is helpful for debugging prompt formatting and model behavior.
 
 ### 3.2 Startup Path and Configuration
 
- Startup parameters include the base model path, LoRA adapter path, host, port, and an optional device override. The entry point parses the command line parameters, normalizes the local path into an absolute path, puts the final value into the environment variable, and then starts the FastAPI application. One useful implementation detail is `_normalize_model_path()`. This helper keeps Hugging Face model identifiers unchanged but converts local model directories into absolute paths. This avoids failures caused by changing the current working directory when launching the service. Since model loading can already be fragile, reducing path-related ambiguity is valuable in practice.
+ Startup parameters include the base model path, LoRA adapter path, host, port, and an optional device override. The entry point parses the command line parameters, normalizes the local path into an absolute path, puts the final value into the environment variable, and then starts the FastAPI application. One useful implementation detail is `_normalize_model_path()`. This helper keeps Hugging Face model identifiers unchanged but converts local model directories into absolute paths. This setting help to avoids failures caused by changing the current working directory when executing the service. Since model loading can already be fragile, reducing path-related ambiguity is valuable in practice.
 
 ### 3.3 Model Lifecycle Management
 
-The model is loaded once during application startup rather than once per request. This is handled through FastAPI's lifespan function. During startup, the server reads `SMOL_MODEL_PATH`, `SMOL_ADAPTER_PATH`, and the optional `SMOL_DEVICE`, then calls `load_model_and_processor()`. The returned model, processor, and resolved device are stored in a process-level dictionary named `_state`.
+The model will be loaded only once when application startup rather than once per request. This is handled through FastAPI's lifespan function. During startup, the server reads `SMOL_MODEL_PATH`, `SMOL_ADAPTER_PATH`, and the optional `SMOL_DEVICE`, then calls `load_model_and_processor()`. The returned model, processor, and resolved device are stored in a process-level dictionary named `_state`.
 
 This design has several advantages. First of all, it avoids the extremely high cost of repeatedly loading multimodal models and adapters in each request. Secondly, it maintains a low enough reasoning delay for interactive use. Finally, it brings the server architecture closer to the real deployment service, in which the model initialization cost is very high, but the reasoning calls are frequent. 
 
@@ -75,7 +71,7 @@ Prompt design is both used in dataset generation and out later SFT. In this proj
 
 ### 4.3 Model Selection and Fine-tuning Method
 
-The main infer model used in this project was **SmolVLM-256M-Instruct** from Huggingface. It is a super small VLM, which is suitable for this task because the system needs to run with limited computing resources and respond quickly, aka, a extreamly fast TTFT.
+The main infer model used in this project was **SmolVLM-256M-Instruct** from Huggingface. This is a relatively small virtual logic module (VLM), which is highly suitable for this task. This is because the system needs to run with limited computing resources and be able to respond quickly or achieve an extremely short total response time (TTFT).
 
 For adaptation, we uses LoRA implementation instead of full parameter trainig. In the training script, LoRA is applied to only the key projection layers in the attention module, including attention layers and MLP layers etc. Also, the pipeline supports 4-bit quantization which would help train and infer faster.
 
